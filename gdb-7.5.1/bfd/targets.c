@@ -591,6 +591,7 @@ extern const bfd_target armpei_little_vec;
 extern const bfd_target b_out_vec_big_host;
 extern const bfd_target b_out_vec_little_host;
 extern const bfd_target bfd_pei_ia64_vec;
+extern const bfd_target bfd_elf32_amiga_vec;
 extern const bfd_target bfd_elf32_avr_vec;
 extern const bfd_target bfd_elf32_bfin_vec;
 extern const bfd_target bfd_elf32_bfinfdpic_vec;
@@ -955,6 +956,7 @@ static const bfd_target * const _bfd_target_vector[] =
 	&armpei_little_vec,
 	&b_out_vec_big_host,
 	&b_out_vec_little_host,
+	&bfd_el32_amiga_vec,
 #ifdef BFD64
 	&bfd_pei_ia64_vec,
 #endif

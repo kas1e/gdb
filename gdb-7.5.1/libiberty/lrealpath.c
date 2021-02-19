@@ -50,6 +50,10 @@ components will be simplified.  The returned value will be allocated using
 #include <string.h>
 #endif
 
+#ifdef __amigaos4__
+#define _PC_PATH_MAX 4096
+#endif
+
 /* On GNU libc systems the declaration is only visible with _GNU_SOURCE.  */
 #if defined(HAVE_CANONICALIZE_FILE_NAME) \
     && defined(NEED_DECLARATION_CANONICALIZE_FILE_NAME)

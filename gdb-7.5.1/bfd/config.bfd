@@ -1171,6 +1171,10 @@ case "${targ}" in
     want64=true
     ;;
 #endif
+  powerpc-*-amiga*)
+    targ_defvec=bfd_elf32_amiga_vec
+    targ_selvecs="rs6000coff_vec bfd_elf32_powerpc_vec bfd_elf32_powerpcle_vec ppcboot_vec"
+    ;;
   powerpc-*-*freebsd*)
     targ_defvec=bfd_elf32_powerpc_freebsd_vec
     targ_selvecs="rs6000coff_vec bfd_elf32_powerpc_vec bfd_elf32_powerpcle_vec ppcboot_vec"

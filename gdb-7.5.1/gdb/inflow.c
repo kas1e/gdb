@@ -42,6 +42,11 @@
 #define O_NOCTTY 0
 #endif
 
+#ifdef __amigaos4__
+#undef HAVE_TERMIOS
+#define HAVE_TERMIO 1
+#endif
+
 extern void _initialize_inflow (void);
 
 static void pass_signal (int);

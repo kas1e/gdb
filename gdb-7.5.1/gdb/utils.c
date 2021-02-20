@@ -35,6 +35,10 @@
 #include "tui/tui.h"		/* For tui_get_command_dimension.   */
 #endif
 
+#ifdef __amigaos4__
+#define _PC_PATH_MAX 4096
+#endif
+
 #ifdef __GO32__
 #include <pc.h>
 #endif

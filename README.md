@@ -1,7 +1,11 @@
 # GDB
 WIP port of GDB (v7.5.1 at the moment) to AmigaOS4.
 
-You need crosscompiler with GCC 8.4.0 minimum and the latest SDK.
+To build you need:
+
+1. cross-compiler with GCC 8.4.0 minimum.
+2. latest SDK.
+3. termcap library: http://os4depot.net/share/development/library/misc/termcap.lha
 
 Download repo and:
 

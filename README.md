@@ -14,4 +14,5 @@ cd gdb-7.5.1
 mkdir gdb-build
 cd gdb-build
 ../configure --host=ppc-amigaos --target=ppc-amigaos --build=x86_64 --disable-nls --disable-werror --disable-sim
+make -j4
 ```

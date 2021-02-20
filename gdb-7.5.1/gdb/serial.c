@@ -604,9 +604,10 @@ serial_pipe (struct serial *scbs[2])
       errno = ENOSYS;
       return -1;
     }
-
+#ifndef __amigaos4__
   if (gdb_pipe (fildes) == -1)
     return -1;
+#endif
 
   scbs[0] = serial_fdopen_ops (fildes[0], ops);
   scbs[1] = serial_fdopen_ops (fildes[1], ops);

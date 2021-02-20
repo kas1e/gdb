@@ -26,6 +26,14 @@
    information may also not match.  */
 
 #warning !! Taken from ADTOOLS GDB 6.3 port ! Need to fix/reimplement for new version !!
+
+void bfd_elf32_amiga_vec(void);
+void bfd_elf32_amiga_vec(void)
+{
+	return;
+}
+
+
 #ifndef __amigaos4__ 
 
 #include "bfd.h"

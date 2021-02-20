@@ -22,6 +22,10 @@
 
 #include "gdb-dlfcn.h"
 
+#ifdef __amigaos4__
+#undef HAVE_DLFCN_H 
+#endif
+
 #ifdef HAVE_DLFCN_H
 #include <dlfcn.h>
 #elif __MINGW32__

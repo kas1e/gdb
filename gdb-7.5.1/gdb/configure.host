@@ -108,6 +108,8 @@ i[34567]86-*-cygwin*)	gdb_host=cygwin ;;
 ia64-*-hpux*)		gdb_host=hpux ;;
 ia64-*-linux*)		gdb_host=linux ;;
 
+powerpc-*-amiga*)	gdb_host=amigaos ;;
+
 m68*-*-linux*)		gdb_host=linux ;;
 m68*-*-netbsdelf* | m68*-*-knetbsd*-gnu)
 			gdb_host=nbsdelf ;;

@@ -6949,7 +6949,7 @@ case $host_os in
     ac_cv_search_tgetent="none required"
     ;;
   amigaos*)
-    ac_cv_search_tgetent="none required"
+    ac_cv_search_tgetent="-ltermcap"
     ;;
   *mingw32*)
     ac_cv_search_tgetent="none required"

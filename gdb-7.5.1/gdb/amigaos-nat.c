@@ -1297,7 +1297,7 @@ amigaos_create_inferior (char *exec_file, char *args, char **env, int from_tty)
 			NP_CloseOutput,     FALSE,
 			NP_Error,           IDOS->ErrorOutput(),
 			NP_CloseError,      FALSE,
-			(homedir ? NP_HomeDir: TAG_IGNORE),homedir,
+			(homedir ? NP_ProgramDir: TAG_IGNORE),homedir,
 			TAG_DONE
 		);
 

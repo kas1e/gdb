@@ -1589,7 +1589,7 @@ amigaos_fetch_registers (int regno)
 {
     int i;
     struct ExceptionContext *context;
-    struct gdbarch_tdep *tdep = gdbarch_tdep (current_gdbarch);
+    struct gdbarch_tdep *tdep = gdbarch_tdep (target_gdbarch);
 
     FUNC;
   
@@ -1647,7 +1647,7 @@ amigaos_store_registers (int regno)
     int i;
 
 	struct ExceptionContext *context = context_ptr;
-    struct gdbarch_tdep *tdep = gdbarch_tdep (current_gdbarch);
+    struct gdbarch_tdep *tdep = gdbarch_tdep (target_gdbarch);
 
     FUNC;
     dprintf("regno = %d (%s)\n", regno, REGISTER_NAME(regno));

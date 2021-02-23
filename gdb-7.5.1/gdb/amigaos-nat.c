@@ -174,7 +174,7 @@ static void amigaos_detach (char *args, int from_tty);
 static void amigaos_kill_inferior (void);
 static int amigaos_can_run(void);
 static void amigaos_resume (ptid_t ptid, int step,
-                            enum target_signal signal);
+                            enum gdb_signal signal);
 static ptid_t amigaos_wait (ptid_t ptid,
                             struct target_waitstatus *status);
 
@@ -1361,7 +1361,7 @@ amigaos_kill_inferior (void)
 }
 
 static void 
-amigaos_resume (ptid_t ptid, int step,  enum target_signal signal)
+amigaos_resume (ptid_t ptid, int step,  enum gdb_signal signal)
 {
 	struct ExceptionContext *context = context_ptr;
 	struct Task *me = IExec->FindTask(NULL);

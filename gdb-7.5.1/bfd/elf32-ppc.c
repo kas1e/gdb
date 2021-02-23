@@ -2256,6 +2256,7 @@ ppc_elf_lookup_section_flags (char *flag_name)
   return 0;
 }
 
+#ifndef __amigaos4__
 /* Add the VLE flag if required.  */
 
 bfd_boolean
@@ -2267,6 +2268,7 @@ ppc_elf_section_processing (bfd *abfd, Elf_Internal_Shdr *shdr)
 
   return TRUE;
 }
+#endif
 
 /* Return address for Ith PLT stub in section PLT, for relocation REL
    or (bfd_vma) -1 if it should not be included.  */
@@ -2341,6 +2343,7 @@ ppc_elf_additional_program_headers (bfd *abfd,
   return ret;
 }
 
+#ifndef __amigaos4__
 /* Modify the segment map for VLE executables.  */ 
 
 bfd_boolean
@@ -2404,6 +2407,7 @@ ppc_elf_modify_segment_map (bfd *abfd,
 
   return TRUE;
 }
+#endif
 
 /* Add extra PPC sections -- Note, for now, make .sbss2 and
    .PPC.EMB.sbss0 a normal section, and not a bss section so
@@ -4667,6 +4671,7 @@ ppc_elf_vle_split16 (bfd *output_bfd, bfd_byte *contents,
 }
 
 
+#ifndef __amigaos4__
 /* Choose which PLT scheme to use, and set .plt flags appropriately.
    Returns -1 on error, 0 for old PLT, 1 for new PLT.  */
 int
@@ -4766,6 +4771,7 @@ ppc_elf_select_plt_layout (bfd *output_bfd ATTRIBUTE_UNUSED,
     }
   return htab->plt_type == PLT_NEW;
 }
+#endif
 
 /* Return the section that should be marked against GC for a given
    relocation.  */
@@ -4963,6 +4969,7 @@ ppc_elf_gc_sweep_hook (bfd *abfd,
   return TRUE;
 }
 
+#ifndef __amigaos4__
 /* Set plt output section type, htab->tls_get_addr, and call the
    generic ELF tls_setup function.  */
 
@@ -5034,7 +5041,7 @@ ppc_elf_tls_setup (bfd *obfd,
 
   return _bfd_elf_tls_setup (obfd, info);
 }
-
+#endif
 /* Return TRUE iff REL is a branch reloc with a global symbol matching
    HASH.  */
 
@@ -5062,6 +5069,7 @@ branch_reloc_hash_match (const bfd *ibfd,
   return FALSE;
 }
 
+#ifndef __amigaos4__
 /* Run through all the TLS relocs looking for optimization
    opportunities.  */
 
@@ -5320,6 +5328,7 @@ ppc_elf_tls_optimize (bfd *obfd ATTRIBUTE_UNUSED,
       }
   return TRUE;
 }
+#endif
 
 /* Return true if we have dynamic relocs that apply to read-only sections.  */
 
@@ -7158,6 +7167,7 @@ is_static_defined (struct elf_link_hash_entry *h)
 	  && h->root.u.def.section->output_section != NULL);
 }
 
+#ifndef __amigaos4__
 /* If INSN is an opcode that may be used with an @tls operand, return
    the transformed insn for TLS optimisation, otherwise return 0.  If
    REG is non-zero only match an insn with RB or RA equal to REG.  */
@@ -7242,7 +7252,7 @@ _bfd_elf_ppc_at_tprel_transform (unsigned int insn, unsigned int reg)
     insn = 0;
   return insn;
 }
-
+#endif
 /* The RELOCATE_SECTION function is called by the ELF backend linker
    to handle the relocations for a section.
 

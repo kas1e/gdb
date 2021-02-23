@@ -37,7 +37,11 @@
 #include "gdbthread.h"
 #include "command.h"
 #include "libbfd.h"
+
+#undef HAVE_DLFCN_H
+#ifdef HAVE_DLFCN_H
 #include "solib-amigaos.h"
+#endif
 
 #include <exec/execbase.h>
 #include <exec/tasks.h>

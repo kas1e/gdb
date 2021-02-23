@@ -93,6 +93,19 @@ extern char *strrchr ();
 #endif
 #endif
 
+// we disable at the moment newlibs's FSEEKO64/FTELLO64 and FOPEN64 (like it was for clib2 back in past), as they cause "illegal seek" issues.
+#ifdef __amigaos4__
+#ifdef __NEWLIB
+#undef HAVE_FTELLO64
+#undef HAVE_FSEEKO64
+#undef HAVE_FOPEN64
+#define HAVE_DECL_FSEEKO64 0
+#define HAVE_DECL_FTELLO64 0
+#define HAVE_FSEEKO 1
+#define HAVE_FTELLO 1
+#endif
+#endif
+
 #ifndef O_RDONLY
 #define O_RDONLY 0
 #endif

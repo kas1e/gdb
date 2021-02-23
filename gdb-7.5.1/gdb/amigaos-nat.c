@@ -1287,8 +1287,9 @@ amigaos_create_inferior (struct target_ops *ops, char *exec_file, char *args, ch
 		{
 			/* TODO: does this ptid need to be set? */
 			ptid_t dummy_ptid;
+
 			amigaos_stop(dummy_ptid);
-			amigaos_kill_inferior(dummy_ptid);
+			amigaos_kill_inferior(NULL);
 		}
 		else
 			error ("Program not killed\n");

@@ -732,41 +732,41 @@ static int trap_to_signal(struct ExceptionContext *context, uint32 flags)
 	dprintf("trap_to_signal(flags=0x%x)\n",flags);
 
     if (!context || (flags & TASK_TERMINATED))
-		return TARGET_SIGNAL_QUIT;
+		return GDB_SIGNAL_QUIT;
 
     dprintf("traptype = 0x%x\n",context->Traptype);
     switch (context->Traptype)
     {
     case 0x200:
     case 0x300:
-		return TARGET_SIGNAL_SEGV;
+		return GDB_SIGNAL_SEGV;
     case 0x400:
     case 0x600:
-		return TARGET_SIGNAL_BUS;
+		return GDB_SIGNAL_BUS;
     case 0x500:
-		return TARGET_SIGNAL_INT;
+		return GDB_SIGNAL_INT;
     case 0x700: 
 		if (context->msr & EXC_FPE)
-			return TARGET_SIGNAL_FPE;
+			return GDB_SIGNAL_FPE;
 		else if (context->msr & EXC_ILLEGAL)
-			return TARGET_SIGNAL_ILL;
+			return GDB_SIGNAL_ILL;
 		else if (context->msr & EXC_PRIV)
-			return TARGET_SIGNAL_ILL;
+			return GDB_SIGNAL_ILL;
 		else
-			return TARGET_SIGNAL_TRAP;
+			return GDB_SIGNAL_TRAP;
     case 0x800:
-		return TARGET_SIGNAL_FPE;
+		return GDB_SIGNAL_FPE;
     case 0x900:
-		return TARGET_SIGNAL_ALRM;      
+		return GDB_SIGNAL_ALRM;      
     case 0xa00:
     case 0xb00:
-		return TARGET_SIGNAL_ILL;
+		return GDB_SIGNAL_ILL;
     case 0xc00:
-		return TARGET_SIGNAL_CHLD;
+		return GDB_SIGNAL_CHLD;
     case 0xd00:
-		return TARGET_SIGNAL_TRAP;
+		return GDB_SIGNAL_TRAP;
     case 0xe00:
-		return TARGET_SIGNAL_FPE;
+		return GDB_SIGNAL_FPE;
     default:
 		return -1;
     }
@@ -1326,7 +1326,7 @@ amigaos_create_inferior (char *exec_file, char *args, char **env, int from_tty)
     add_thread(inferior_ptid);
 
     /* FIXME: This is from the gdb source: You should call clear_proceed_status before calling proceed.  */
-    proceed ((CORE_ADDR) -1, TARGET_SIGNAL_0, 0);
+    proceed ((CORE_ADDR) -1, GDB_SIGNAL_0, 0);
     inferior_created = TRUE;
   
     FUNCX;
@@ -1460,7 +1460,7 @@ amigaos_wait (ptid_t ptid, struct target_waitstatus *status)
 			IExec->SuspendTask((struct Task *)process, 0);
        
 			status->kind = TARGET_WAITKIND_STOPPED;
-			status->value.sig = TARGET_SIGNAL_TRAP;
+			status->value.sig = GDB_SIGNAL_TRAP;
        
 			FUNCX;
 			return pid_to_ptid ((int)process);
@@ -1473,7 +1473,7 @@ amigaos_wait (ptid_t ptid, struct target_waitstatus *status)
 			
 			dprintf("Got a signal %d (%s) from process %p @ ip %08lx (ctx=%08lx, msg=%08lx)\n", 
 					trap_to_signal(context, msg->flags), 
-					target_signal_to_name (trap_to_signal(context, msg->flags)),
+					GDB_SIGNAL_to_name (trap_to_signal(context, msg->flags)),
 					process, context->ip, context, msg);
 	
 			if (msg->signal != -1)
@@ -1484,7 +1484,7 @@ amigaos_wait (ptid_t ptid, struct target_waitstatus *status)
 
 				switch (i)
 				{
-					case TARGET_SIGNAL_CHLD:
+					case GDB_SIGNAL_CHLD:
 
 						/* Make sure the debugger stops waiting */
 						//printf("                                          received CHLD signal\n");
@@ -1495,7 +1495,7 @@ amigaos_wait (ptid_t ptid, struct target_waitstatus *status)
 //						return pid_to_ptid ((int)process);
 						break;
 
-					case TARGET_SIGNAL_QUIT:
+					case GDB_SIGNAL_QUIT:
 
 						//printf("                                           Inferior has died(QUIT)\n");
 						status->kind = TARGET_WAITKIND_SIGNALLED;
@@ -1503,18 +1503,18 @@ amigaos_wait (ptid_t ptid, struct target_waitstatus *status)
 						debug_data.current_process = 0;
 						break;
 
-					case TARGET_SIGNAL_TRAP:
+					case GDB_SIGNAL_TRAP:
 						//printf("                                               TRAP!\n");
 						status->kind = TARGET_WAITKIND_STOPPED;
-						status->value.sig = TARGET_SIGNAL_TRAP;
+						status->value.sig = GDB_SIGNAL_TRAP;
 						break;
 
-					case TARGET_SIGNAL_SEGV:
-					case TARGET_SIGNAL_BUS:
-					case TARGET_SIGNAL_INT:
-					case TARGET_SIGNAL_FPE:
-					case TARGET_SIGNAL_ILL:
-					case TARGET_SIGNAL_ALRM:
+					case GDB_SIGNAL_SEGV:
+					case GDB_SIGNAL_BUS:
+					case GDB_SIGNAL_INT:
+					case GDB_SIGNAL_FPE:
+					case GDB_SIGNAL_ILL:
+					case GDB_SIGNAL_ALRM:
 						//printf("                                               Inferior is stopped\n");
 						status->kind = TARGET_WAITKIND_STOPPED;
 
@@ -1543,7 +1543,7 @@ amigaos_wait (ptid_t ptid, struct target_waitstatus *status)
 			{
 				dprintf("New task attach message\n");
 				status->kind = TARGET_WAITKIND_STOPPED;
-				status->value.sig = TARGET_SIGNAL_TRAP;
+				status->value.sig = GDB_SIGNAL_TRAP;
 			
 			    drop_msg_packet(msg);
 				FUNCX;          

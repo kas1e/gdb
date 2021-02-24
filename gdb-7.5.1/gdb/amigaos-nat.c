@@ -1622,7 +1622,7 @@ amigaos_fetch_registers (struct target_ops *ops, struct regcache *regcache, int 
 		return;
 
   	dprintf("inferior_ptid=%p\n",inferior_ptid);
-    dprintf("regno = %d (%s)\n", regno, REGISTER_NAME(regno));
+    //dprintf("regno = %d (%s)\n", regno, REGISTER_NAME(regno));
     dprintf("context = %p, sp = %lx, pc = %lx, lr = %lx\n", context, context->gpr[1], context->ip, context->lr);
   
     if (regno == -1)
@@ -1678,7 +1678,7 @@ amigaos_store_registers (struct target_ops *ops, struct regcache *regcache, int 
     #define PC_REGNUM 3
 
     FUNC;
-    dprintf("regno = %d (%s)\n", regno, REGISTER_NAME(regno));
+    //dprintf("regno = %d (%s)\n", regno, REGISTER_NAME(regno));
 
 
 

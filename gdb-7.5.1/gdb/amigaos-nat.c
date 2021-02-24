@@ -1579,8 +1579,12 @@ amigaos_wait (struct target_ops *ops, ptid_t ptid, struct target_waitstatus *sta
 				status->value.sig = 0;
 				
 				/* Add the library to our internal list */
+				#ifdef HAVE_DLFCN_H
 				if (!amigaos_find_lib(msg->library))
-					amigaos_add_lib(msg->library);
+					{
+						amigaos_add_lib(msg->library);
+					}
+				#endif
 				
 				drop_msg_packet(msg);
 				
@@ -1998,7 +2002,10 @@ _initialize_amigaos_nat (void)
 {
 //printf("DEBUG: _initialize_amigaos_nat()\n");
 
-    init_amigaos_ops();
-    add_target(&amigaos_ops);
-    amigaos_solib_init();
+	init_amigaos_ops();
+	add_target(&amigaos_ops);
+
+#ifdef HAVE_DLFCN_H
+	amigaos_solib_init();
+#endif
 }

@@ -84,7 +84,7 @@
 #define    TASK_TERMINATED            0x00000001
 #define    TASK_ATTACHED              0x00000002
 #define    TASK_INTERRUPTED           0x00000004
-#define	   TASK_OPENLIB				  0x00000008
+#define	   TASK_OPENLIB               0x00000008
 #define	   TASK_CLOSELIB              0x00000010
 
 extern struct ExecBase *SysBase;
@@ -108,14 +108,14 @@ struct Task *amigaos_gdb_task = 0;
 
 /* Message sent from debugger hook to debugger to alert debugger
    of an event that happened */
-   
+
 struct debugger_message
 {
-    struct Message msg;
-    struct Process *process;
-    uint32 flags;
+	struct Message msg;
+	struct Process *process;
+	uint32 flags;
 	uint32 signal;
-    struct Library *library;
+	struct Library *library;
 };
 
 
@@ -178,10 +178,8 @@ static void amigaos_attach (struct target_ops *ops, char *args, int from_tty);
 static void amigaos_detach (struct target_ops *ops, char *args, int from_tty);
 static void amigaos_kill_inferior (struct target_ops *ops);
 static int amigaos_can_run(void);
-static void amigaos_resume (struct target_ops *ops, ptid_t ptid, int step,
-                            enum gdb_signal signal);
-static ptid_t amigaos_wait (struct target_ops *ops, ptid_t ptid,
-                            struct target_waitstatus *status, int step);
+static void amigaos_resume (struct target_ops *ops, ptid_t ptid, int step, enum gdb_signal signal);
+static ptid_t amigaos_wait (struct target_ops *ops, ptid_t ptid, struct target_waitstatus *status, int step);
 
 static void amigaos_fetch_registers (struct target_ops *, struct regcache *regcache, int regno);
 static void amigaos_store_registers (struct target_ops *, struct regcache *regcache, int regno);
@@ -199,8 +197,7 @@ static void amigaos_stop (ptid_t ptid);
 static void amigaos_terminal_info (char *args, int from_tty);
 static char *amigaos_pid_to_exec_file (int pid);
 
-static void amigaos_create_inferior (struct target_ops *ops, char *exec_file,
-																		 char *args, char **env, int from_tty);
+static void amigaos_create_inferior (struct target_ops *ops, char *exec_file, char *args, char **env, int from_tty);
 
 static int amigaos_memory_insert_breakpoint (struct gdbarch *arch, struct bp_target_info *target);
 static int amigaos_memory_remove_breakpoint (struct gdbarch *arch, struct bp_target_info *target);
@@ -210,7 +207,6 @@ static int amigaos_has_memory (struct target_ops *ops);
 static int amigaos_has_stack (struct target_ops *ops);
 static int amigaos_has_registers (struct target_ops *ops);
 static int amigaos_has_execution (struct target_ops *ops, ptid_t pid);
-
 
 static int is_process_alive(struct Process *process);
 
@@ -233,29 +229,35 @@ static CORE_ADDR amigaos_get_symbol_addrs_hook(const char *name);
 
 void amigaos_pre_init(void)
 {
-    ElfBase = IExec->OpenLibrary("elf.library", 0);
-    if (!ElfBase)
-    	error("Can't open elf.library. How did you run *this* program ?\n");
-	
-    IElf = (struct ElfIFace *)IExec->GetInterface(ElfBase, "main", 1, 0);
-    if (!IElf)
-    	error("Can't get elf.library::main\n");
-		
-    IMMU = (struct MMUIFace *)IExec->GetInterface((struct Library *)SysBase, "mmu", 1, 0);
-    if (!IMMU)
-		error("Can't get MMU access\n");	
+	ElfBase = IExec->OpenLibrary("elf.library", 0);
+	if (!ElfBase)
+		error("Can't open elf.library. How did you run *this* program ?\n");
+
+	IElf = (struct ElfIFace *)IExec->GetInterface(ElfBase, "main", 1, 0);
+	if (!IElf)
+		error("Can't get elf.library::main\n");
+
+	IMMU = (struct MMUIFace *)IExec->GetInterface((struct Library *)SysBase, "mmu", 1, 0);
+	if (!IMMU)
+		error("Can't get MMU access\n");
 }
 
 void amigaos_post_term(void)
 {
-    if (IElf)		IExec->DropInterface((struct Interface *)IElf);
-    IElf = 0;
-    
-    if (ElfBase)	IExec->CloseLibrary(ElfBase);
-    ElfBase = 0;
-	
-    if (IMMU)		IExec->DropInterface((struct Interface *)IMMU);
-    IMMU = 0;
+	if (IElf) {
+		IExec->DropInterface((struct Interface *)IElf);
+	}
+	IElf = 0;
+
+	if (ElfBase) {
+		IExec->CloseLibrary(ElfBase);
+	}
+	ElfBase = 0;
+
+	if (IMMU) {
+		IExec->DropInterface((struct Interface *)IMMU);
+	}
+	IMMU = 0;
 }
 
 /**
@@ -266,41 +268,41 @@ void amigaos_post_term(void)
  */
 static void amigaos_relocate_elfhandle (void *exec_elfhandle)
 {
-    Elf32_Handle hElf = (Elf32_Handle)exec_elfhandle;
-    Elf32_Shdr *pHeader;
-    int i;
-    uint32 nSecs;
-    uint32 strtblidx; /* for debugging */
-    char *strtbl; /* for debugging */
+	Elf32_Handle hElf = (Elf32_Handle)exec_elfhandle;
+	Elf32_Shdr *pHeader;
+	int i;
+	uint32 nSecs;
+	uint32 strtblidx; /* for debugging */
+	char *strtbl; /* for debugging */
 
-    struct TagItem tags[] =
+	struct TagItem tags[] =
 		{
 			{GST_SectionIndex,     0},
 			{GST_Load,             TRUE},
 			{TAG_DONE,             0}
 		};
-  
-    /* Get number of sections in ELF file and the string
-     * table index. The latter is used only for debugging
-     * purposes. */
-    if ((2 != IElf->GetElfAttrsTags(hElf,
-    		EAT_NumSections, &nSecs,
-    		EAT_SectionStringTable, &strtblidx,
-    		TAG_DONE)))
-    {
-    	fprintf(stderr,"Cannot query elf handle\n");
-    	return;
-    }
 
-    if (!(strtbl = (char*)IElf->GetSectionTags(hElf, GST_SectionIndex, strtblidx, TAG_DONE)))
-    {
-    	fprintf(stderr,"Unable to get string table\n");
-    	return;
-    }
+	/* Get number of sections in ELF file and the string
+	 * table index. The latter is used only for debugging
+	 * purposes. */
+	if ((2 != IElf->GetElfAttrsTags(hElf,
+			EAT_NumSections, &nSecs,
+			EAT_SectionStringTable, &strtblidx,
+			TAG_DONE)))
+	{
+		fprintf(stderr,"Cannot query elf handle\n");
+		return;
+	}
 
-    /* Go through all sections, and make sure they are loaded and relocated */
-    for (i = 1; i < nSecs; i++)
-    {
+	if (!(strtbl = (char*)IElf->GetSectionTags(hElf, GST_SectionIndex, strtblidx, TAG_DONE)))
+	{
+		fprintf(stderr,"Unable to get string table\n");
+		return;
+	}
+
+	/* Go through all sections, and make sure they are loaded and relocated */
+	for (i = 1; i < nSecs; i++)
+	{
 		if (!(pHeader = IElf->GetSectionHeaderTags(hElf, GST_SectionIndex, i, TAG_DONE)))
 			continue;
 
@@ -322,7 +324,7 @@ static void amigaos_relocate_elfhandle (void *exec_elfhandle)
 		if (pHeader && (pHeader->sh_type == SHT_RELA))
 		{
 			Elf32_Shdr *pRefHeader;
-      
+
 			/* Get the section header to which this rela section refers. This is the one we want
 			 * to relocate. Make sure that it exists. */
 			pRefHeader = IElf->GetSectionHeaderTags(hElf, GST_SectionIndex, pHeader->sh_info, TAG_DONE);
@@ -343,7 +345,7 @@ static void amigaos_relocate_elfhandle (void *exec_elfhandle)
 				}
 			}
 		}
-    }
+	}
 }
 
 /**
@@ -357,25 +359,26 @@ void amigaos_exec_file_attach_hook(char *filename, int from_tty)
 {
 	struct PseudoSegList *seglist;
 
-    if (!is_attach)
-    {
-	BPTR filelock;
-        exec_seglist = IDOS->LoadSeg(filename);
-
-        if (exec_seglist == 0)
-			error ("\"%s\": not an executable file\n", filename);
-
-        seglist_is_mine = TRUE;
-
-    	if( (filelock = IDOS->Lock(filename,SHARED_LOCK)) != 0)
+	if (!is_attach)
 	{
-    		homedir = IDOS->ParentDir(filelock);
-    		IDOS->UnLock(filelock);
-    	}
-    }
+		BPTR filelock;
+		exec_seglist = IDOS->LoadSeg(filename);
+
+		if (exec_seglist == 0) {
+			error ("\"%s\": not an executable file\n", filename);
+		}
+
+		seglist_is_mine = TRUE;
+
+		if( (filelock = IDOS->Lock(filename,SHARED_LOCK)) != 0)
+		{
+			homedir = IDOS->ParentDir(filelock);
+			IDOS->UnLock(filelock);
+		}
+	}
 
 	dprintf("Getting elf handle for seglist %p\n", exec_seglist);
-    IDOS->GetSegListInfoTags(exec_seglist,
+	IDOS->GetSegListInfoTags(exec_seglist,
 							 GSLI_ElfHandle, &exec_elfhandle,
 							 GSLI_Native, &seglist,
 							 TAG_DONE);
@@ -390,12 +393,12 @@ void amigaos_exec_file_attach_hook(char *filename, int from_tty)
 
 		exec_seglist = 0;
 		error ("\"%s\": not a PowerPC executable\n", filename);
-    }
+	}
 
 	dprintf("Code starts at %p\n",seglist->ps_Entry);
-    current_elfhandle = IElf->OpenElfTags(OET_ElfHandle, exec_elfhandle, TAG_DONE);
-    exec_elfhandle = current_elfhandle;
-    amigaos_relocate_elfhandle(exec_elfhandle);
+	current_elfhandle = IElf->OpenElfTags(OET_ElfHandle, exec_elfhandle, TAG_DONE);
+	exec_elfhandle = current_elfhandle;
+	amigaos_relocate_elfhandle(exec_elfhandle);
 }
 
 /**
@@ -405,19 +408,19 @@ void amigaos_exec_file_attach_hook(char *filename, int from_tty)
  */
 void amigaos_exec_close_hook(int quitting)
 {
-    if (exec_elfhandle != 0)
-    {
-        IElf->CloseElfTags((Elf32_Handle)exec_elfhandle,
-						   CET_ReClose,    TRUE,
-						   TAG_DONE);
-        exec_elfhandle = 0;
-    }
+	if (exec_elfhandle != 0)
+	{
+		IElf->CloseElfTags((Elf32_Handle)exec_elfhandle,
+						CET_ReClose,	TRUE,
+						TAG_DONE);
+		exec_elfhandle = 0;
+	}
 
-    if (exec_seglist != 0 && seglist_is_mine)
-    {
-        IDOS->UnLoadSeg(exec_seglist);
-        exec_seglist = 0;
-    }
+	if (exec_seglist != 0 && seglist_is_mine)
+	{
+		IDOS->UnLoadSeg(exec_seglist);
+		exec_seglist = 0;
+	}
 }
 /**
  * This is a hook hack that is called for each symbol to recover the real address.
@@ -428,9 +431,9 @@ void amigaos_exec_close_hook(int quitting)
 static CORE_ADDR amigaos_get_symbol_addrs_hook(const char *name)
 {
 	struct Elf32_SymbolQuery query;
-    Elf32_Handle hElf = (Elf32_Handle)exec_elfhandle;
+	Elf32_Handle hElf = (Elf32_Handle)exec_elfhandle;
 
-    if (!hElf ) return 0;
+	if (!hElf ) return 0;
 
 	query.Flags = ELF32_SQ_BYNAME;
 	query.Name = (char*)name;
@@ -454,22 +457,23 @@ static CORE_ADDR amigaos_get_symbol_addrs_hook(const char *name)
  */
 static int amigaos_find_section_by_offset_size(Elf32_Handle hElf, uint32 offset, uint32 size)
 {
-    int i;
-    uint32 nSecs;
-    Elf32_Shdr *pHeader;
- 
-    dprintf("amigaos_find_section_by_offset_size(hElf=%p,offset=0x%x,size=%d)\n",hElf,offset,size);
- 
-    IElf->GetElfAttrsTags(hElf, EAT_NumSections, &nSecs, TAG_DONE);
-    if (nSecs <= 0)
+	int i;
+	uint32 nSecs;
+	Elf32_Shdr *pHeader;
+
+	dprintf("amigaos_find_section_by_offset_size(hElf=%p,offset=0x%x,size=%d)\n",hElf,offset,size);
+
+	IElf->GetElfAttrsTags(hElf, EAT_NumSections, &nSecs, TAG_DONE);
+	if (nSecs <= 0) {
 		return 0;
-     
-    for (i = 1; i < nSecs; i++)
-    {
+	}
+
+	for (i = 1; i < nSecs; i++)
+	{
 		uint32 upper, lower;
-     
+
 		pHeader = IElf->GetSectionHeaderTags(hElf, GST_SectionIndex, i, TAG_DONE);
-     
+
 		if (pHeader && pHeader->sh_type != SHT_NOBITS)
 		{
 			upper = pHeader->sh_offset + pHeader->sh_size;
@@ -481,9 +485,9 @@ static int amigaos_find_section_by_offset_size(Elf32_Handle hElf, uint32 offset,
 				return i;
 			}
 		}
-    }
-  
-    return 0;
+	}
+
+	return 0;
 }
 
 /**
@@ -498,40 +502,40 @@ bfd_byte *amigaos_relocate_section (bfd *abfd, asection *sectp, bfd_byte *buf)
 {
 	bfd_byte *contents;
 
-    int i;
-    int nIndex;
-    APTR pSection;
-    bfd_size_type size = bfd_get_section_size (sectp);
-    int offset = sectp->filepos;
-    Elf32_Handle hElf = (Elf32_Handle)current_elfhandle;
-    if (size == 0) return NULL;
-    if (!hElf) return NULL;
+	int i;
+	int nIndex;
+	APTR pSection;
+	bfd_size_type size = bfd_get_section_size (sectp);
+	int offset = sectp->filepos;
+	Elf32_Handle hElf = (Elf32_Handle)current_elfhandle;
+	if (size == 0) return NULL;
+	if (!hElf) return NULL;
 
 	if (!buf) contents = bfd_malloc(size);
 	else contents = buf;
 
-    dprintf("amigaos_relocate_section() name = %s\n",sectp->name);
+	dprintf("amigaos_relocate_section() name = %s\n",sectp->name);
 
-    /* Find the section header for this section */
-    nIndex = amigaos_find_section_by_offset_size(hElf, (uint32)offset, (uint32)size);
+	/* Find the section header for this section */
+	nIndex = amigaos_find_section_by_offset_size(hElf, (uint32)offset, (uint32)size);
 
-    if (nIndex == 0)
-    {
+	if (nIndex == 0)
+	{
 		error ("Dwarf Error: Can't find a section from '%s'",
 			   bfd_get_filename (abfd));
 		return NULL;
-    }
+	}
 
-    /* Copy the sections from the loaded image */
-    pSection = IElf->GetSectionTags(hElf, GST_SectionIndex, nIndex, TAG_DONE);
-    if (!pSection)
-    {
+	/* Copy the sections from the loaded image */
+	pSection = IElf->GetSectionTags(hElf, GST_SectionIndex, nIndex, TAG_DONE);
+	if (!pSection)
+	{
 		error ("Dwarf Error: Can't copy DWARF data from '%s'",
-			   bfd_get_filename (abfd));
+				bfd_get_filename (abfd));
 		return NULL;
-    }
+	}
 
-    memcpy(contents, pSection, size);
+	memcpy(contents, pSection, size);
 	return contents;
 }
 
@@ -548,46 +552,46 @@ bfd_byte *amigaos_relocate_section (bfd *abfd, asection *sectp, bfd_byte *buf)
  */
 char *dwarf2_read_section (struct objfile *objfile, asection *sectp)
 {
-    bfd *abfd = objfile->obfd;
-    char *buf;
-    int i;
-    int nIndex;
-    APTR pSection;
-    bfd_size_type size = bfd_get_section_size (sectp);
-    int offset = sectp->filepos;
-    Elf32_Handle hElf = (Elf32_Handle)current_elfhandle;
-    if (size == 0)
+	bfd *abfd = objfile->obfd;
+	char *buf;
+	int i;
+	int nIndex;
+	APTR pSection;
+	bfd_size_type size = bfd_get_section_size (sectp);
+	int offset = sectp->filepos;
+	Elf32_Handle hElf = (Elf32_Handle)current_elfhandle;
+	if (size == 0) {
 		return NULL;
-		
-    if (!hElf)
-    		return NULL;
+	}
 
-    buf = (char *) obstack_alloc (&objfile->objfile_obstack, size);
-    dprintf("dwarf2_read_section() name = %s\n",sectp->name);
-    /* Find the section header for this section */
-    nIndex = amigaos_find_section_by_offset_size(hElf, (uint32)offset, (uint32)size);
-  
-    if (nIndex == 0)
-    {    
+	if (!hElf) {
+		return NULL;
+	}
+
+	buf = (char *) obstack_alloc (&objfile->objfile_obstack, size);
+	dprintf("dwarf2_read_section() name = %s\n",sectp->name);
+	/* Find the section header for this section */
+	nIndex = amigaos_find_section_by_offset_size(hElf, (uint32)offset, (uint32)size);
+	
+	if (nIndex == 0)
+	{
 		buf = NULL;
-		error ("Dwarf Error: Can't identify DWARF data from '%s'",
-			   bfd_get_filename (abfd));
-    }
-  
-    /* Copy the sections from the loaded image */
-    pSection = IElf->GetSectionTags(hElf, GST_SectionIndex, nIndex, TAG_DONE);
-    if (!pSection)
-    {
+		error ("Dwarf Error: Can't identify DWARF data from '%s'", bfd_get_filename (abfd));
+	}
+
+	/* Copy the sections from the loaded image */
+	pSection = IElf->GetSectionTags(hElf, GST_SectionIndex, nIndex, TAG_DONE);
+	if (!pSection)
+	{
 		buf = NULL;
-		error ("Dwarf Error: Can't copy DWARF data from '%s'",
-			   bfd_get_filename (abfd));
-    }
-  
-    memcpy(buf, pSection, size);
-       
-    return buf;
+		error ("Dwarf Error: Can't copy DWARF data from '%s'", bfd_get_filename (abfd));
+	}
+
+	memcpy(buf, pSection, size);
+
+	return buf;
 }
-      
+
 
 /**
  * Initialize message storage. msg_list contains empty messages
@@ -596,23 +600,25 @@ char *dwarf2_read_section (struct objfile *objfile, asection *sectp)
  */
 static void init_msg_storage (void)
 {
-    struct debugger_message *msg;
-    int i;
+	struct debugger_message *msg;
+	int i;
 
-    if (msg_storage)
+	if (msg_storage) {
 		return;
-    
-    if (!(msg_storage = IExec->AllocVecTags (MAX_DEBUG_MESSAGES * sizeof(struct debugger_message), AVT_Type, MEMF_SHARED, TAG_DONE)))
-		error ("Can't allocate memory for messages\n");  
+	}
 
-    IExec->NewList(&msg_list);
-  
-    msg = (struct debugger_message *)msg_storage;
-    for (i = 0; i < MAX_DEBUG_MESSAGES; i++)
-    {
+	if (!(msg_storage = IExec->AllocVecTags (MAX_DEBUG_MESSAGES * sizeof(struct debugger_message), AVT_Type, MEMF_SHARED, TAG_DONE))) {
+		error ("Can't allocate memory for messages\n");
+	}
+
+	IExec->NewList(&msg_list);
+
+	msg = (struct debugger_message *)msg_storage;
+	for (i = 0; i < MAX_DEBUG_MESSAGES; i++)
+	{
 		IExec->AddHead(&msg_list, (struct Node *)msg);
 		msg++;
-    }
+	}
 }
 
 /**
@@ -620,12 +626,12 @@ static void init_msg_storage (void)
  */
 static void term_msg_storage (void)
 {
-    if (msg_storage)
-    {
+	if (msg_storage)
+	{
 		IExec->NewList(&msg_list);
 		IExec->FreeVec(msg_storage);
 		msg_storage = NULL;
-    }
+	}
 }
 
 /**
@@ -634,17 +640,17 @@ static void term_msg_storage (void)
  */
 static struct debugger_message *get_msg_packet (void)
 {
-    struct debugger_message *msg;
+	struct debugger_message *msg;
 
-    msg = (struct debugger_message *)IExec->RemHead(&msg_list);
+	msg = (struct debugger_message *)IExec->RemHead(&msg_list);
 
-    msg->msg.mn_Node.ln_Type = NT_MESSAGE;
-    msg->msg.mn_Node.ln_Name = 0;
-    msg->msg.mn_ReplyPort = 0;
-    msg->msg.mn_Length = sizeof(struct debugger_message);
-    msg->process = 0;
-   
-    return msg;
+	msg->msg.mn_Node.ln_Type = NT_MESSAGE;
+	msg->msg.mn_Node.ln_Name = 0;
+	msg->msg.mn_ReplyPort = 0;
+	msg->msg.mn_Length = sizeof(struct debugger_message);
+	msg->process = 0;
+
+	return msg;
 }
 
 /**
@@ -656,30 +662,31 @@ static struct debugger_message *get_msg_packet (void)
  */
 static void drop_msg_packet(struct debugger_message *msg)
 {
-    if (msg)
-    {
+	if (msg)
+	{
 		IExec->Disable();
 		IExec->AddTail(&msg_list, (struct Node *)msg);
 		IExec->Enable();
-    }
+	}
 }
 
 /* See if the process is still in any list (Suspend is searched first,
    as it's the most likely place if a message was sent on my_process's behalf */
-   
+
 static int is_process_alive(struct Process *my_process)
 {
-    struct Node *process;
+	struct Node *process;
 	struct Task *me = (struct Task *)my_process;
 
 //printf("DEBUG: is_process_alive()\n");
 
-	if( child_running )
+	if( child_running ) {
 		return TRUE;
-	else
+	} else {
 		return FALSE;
+	}
 
-    IExec->Disable();
+	IExec->Disable();
 
 //***NB: this is probably wrong...
 /* 	switch ((enum enTaskState)(me->tc_State))
@@ -701,16 +708,16 @@ static int is_process_alive(struct Process *my_process)
 */
 
 /* FIXME FIXME FIXME
-    for (process = ((struct ExecBase *)SysBase)->TaskSuspend.lh_Head;
+	for (process = ((struct ExecBase *)SysBase)->TaskSuspend.lh_Head;
 		 process->ln_Succ;
 		 process = process->ln_Succ)
-    {
+	{
 		if (process == (struct Node *)my_process)
 		{
 			IExec->Enable();
 			return TRUE;
 		}
-    }
+	}
  */
 if((enum enTaskState)(me->tc_State) == TS_SUSPENDED)
 {
@@ -719,31 +726,31 @@ if((enum enTaskState)(me->tc_State) == TS_SUSPENDED)
 }
 
 
-    for (process = SysBase->TaskWait.lh_Head;
+	for (process = SysBase->TaskWait.lh_Head;
 		 process->ln_Succ;
 		 process = process->ln_Succ)
-    {
+	{
 		if (process == (struct Node *)my_process)
 		{
 			IExec->Enable();
 			return TRUE;
 		}
-    }
-  
-    for (process = SysBase->TaskReady.lh_Head;
-		 process->ln_Succ;
-		 process = process->ln_Succ)
-    {
-		if (process == (struct Node *)my_process)
-		{
-			IExec->Enable();
-			return TRUE;
-		}
-    }
+	}
 
-    IExec->Enable();
-  
-    return FALSE;
+	for (process = SysBase->TaskReady.lh_Head;
+		 process->ln_Succ;
+		 process = process->ln_Succ)
+	{
+		if (process == (struct Node *)my_process)
+		{
+			IExec->Enable();
+			return TRUE;
+		}
+	}
+
+	IExec->Enable();
+
+	return FALSE;
 }
 
 
@@ -758,21 +765,22 @@ static int trap_to_signal(struct ExceptionContext *context, uint32 flags)
 {
 	dprintf("trap_to_signal(flags=0x%x)\n",flags);
 
-    if (!context || (flags & TASK_TERMINATED))
+	if (!context || (flags & TASK_TERMINATED)) {
 		return GDB_SIGNAL_QUIT;
+	}
 
-    dprintf("traptype = 0x%x\n",context->Traptype);
-    switch (context->Traptype)
-    {
-    case 0x200:
-    case 0x300:
+	dprintf("traptype = 0x%x\n",context->Traptype);
+	switch (context->Traptype)
+	{
+	case 0x200:
+	case 0x300:
 		return GDB_SIGNAL_SEGV;
-    case 0x400:
-    case 0x600:
+	case 0x400:
+	case 0x600:
 		return GDB_SIGNAL_BUS;
-    case 0x500:
+	case 0x500:
 		return GDB_SIGNAL_INT;
-    case 0x700: 
+	case 0x700: 
 		if (context->msr & EXC_FPE)
 			return GDB_SIGNAL_FPE;
 		else if (context->msr & EXC_ILLEGAL)
@@ -781,24 +789,24 @@ static int trap_to_signal(struct ExceptionContext *context, uint32 flags)
 			return GDB_SIGNAL_ILL;
 		else
 			return GDB_SIGNAL_TRAP;
-    case 0x800:
+	case 0x800:
 		return GDB_SIGNAL_FPE;
-    case 0x900:
-		return GDB_SIGNAL_ALRM;      
-    case 0xa00:
-    case 0xb00:
+	case 0x900:
+		return GDB_SIGNAL_ALRM;
+	case 0xa00:
+	case 0xb00:
 		return GDB_SIGNAL_ILL;
-    case 0xc00:
+	case 0xc00:
 		return GDB_SIGNAL_CHLD;
-    case 0xd00:
+	case 0xd00:
 		return GDB_SIGNAL_TRAP;
-    case 0xe00:
+	case 0xe00:
 		return GDB_SIGNAL_FPE;
-    default:
+	default:
 		return -1;
-    }
-}  
-      
+	}
+}
+
 /* Initialize everything needed to debug a task */
 
 void 
@@ -806,29 +814,31 @@ amiga_init(void)
 {
 //printf("DEBUG: amiga_init()\n");
 
-    if (init == TRUE)
+	if (init == TRUE) {
 		return;
-    
-    /* Get the debugger interface */
-    IDebug = (struct DebugIFace *)IExec->GetInterface((struct Library *)SysBase, "debug", 1, 0);
-    if (!IDebug)
+	}
+
+	/* Get the debugger interface */
+	IDebug = (struct DebugIFace *)IExec->GetInterface((struct Library *)SysBase, "debug", 1, 0);
+	if (!IDebug) {
 		error ("Can't find kernel's debugger interface\n");
-    
-    /* Initialize the hook and data structure */
-    debug_data.current_process = 0;
-    debug_data.debugger_port = IExec->AllocSysObjectTags (ASOT_PORT, ASOPORT_Name, "GDB", TAG_DONE);
-    debug_data.debugger_task = IExec->FindTask(NULL);
-  
-//    IExec->DebugPrintF("I am %p\n", debug_data.debugger_task);
-    init_msg_storage();
-  
-    debug_hook.h_Entry = (ULONG (*)())amigaos_debug_callback;
-    debug_hook.h_Data = (APTR)&debug_data;
-   
-   	amigaos_gdb_task = IExec->FindTask(0);
-    //IDebug->AddDebugHook(amigaos_gdb_task, &debug_hook);
-   
-    init = TRUE;
+	}
+
+	/* Initialize the hook and data structure */
+	debug_data.current_process = 0;
+	debug_data.debugger_port = IExec->AllocSysObjectTags (ASOT_PORT, ASOPORT_Name, "GDB", TAG_DONE);
+	debug_data.debugger_task = IExec->FindTask(NULL);
+
+	//IExec->DebugPrintF("I am %p\n", debug_data.debugger_task);
+	init_msg_storage();
+
+	debug_hook.h_Entry = (ULONG (*)())amigaos_debug_callback;
+	debug_hook.h_Data = (APTR)&debug_data;
+
+	amigaos_gdb_task = IExec->FindTask(0);
+	//IDebug->AddDebugHook(amigaos_gdb_task, &debug_hook);
+
+	init = TRUE;
 } 
 
 void 
@@ -836,40 +846,42 @@ amiga_term(void)
 {
 //printf("DEBUG: amiga_term()\n");
 
-    struct debugger_message *msg;
-  
-    if (init == FALSE)
+	struct debugger_message *msg;
+
+	if (init == FALSE) {
 		return;
-    
-    /* Clear the debug hook (necessary to avoid the shell reusing it) */ 
-    IDebug->AddDebugHook(amigaos_gdb_task, NULL);
-    
-    /* Free pending messages and port */
-    while ((msg = (struct debugger_message *)IExec->GetMsg(debug_data.debugger_port)))
+	}
+
+	/* Clear the debug hook (necessary to avoid the shell reusing it) */ 
+	IDebug->AddDebugHook(amigaos_gdb_task, NULL);
+
+	/* Free pending messages and port */
+	while ((msg = (struct debugger_message *)IExec->GetMsg(debug_data.debugger_port)))
 		drop_msg_packet(msg);
 
-    IExec->FreeSysObject (ASOT_PORT, debug_data.debugger_port);
+	IExec->FreeSysObject (ASOT_PORT, debug_data.debugger_port);
 
-    if (IDebug)
-	    IExec->DropInterface((struct Interface *)IDebug);
-  
-    term_msg_storage();
-  
-    init = FALSE;
+	if (IDebug) {
+		IExec->DropInterface((struct Interface *)IDebug);
+	}
+
+	term_msg_storage();
+
+	init = FALSE;
 }
 
 /* Check for an absolute path name. A path is absolute if there's no slash
    encountered before the first colon */
-   
+
 static int
 amiga_is_absolute_path(const char *f)
 {
 //printf("\nDEBUG: amiga_is_absolute_path()\n");
 //printf("       f=%s\n", f);
 
-    int i;
-    for (i = 0; i < strlen(f); i++)
-    {
+	int i;
+	for (i = 0; i < strlen(f); i++)
+	{
 		/* If we reach a slash, it's not absolute */
 		if (f[i] == '/') 
 			return 0;
@@ -877,10 +889,10 @@ amiga_is_absolute_path(const char *f)
 		/* Otherwise, if we reach a colon, it is */
 		if (f[i] == ':')
 			return 1;
-    }	
-   
-    /* It's a plain file name */
-    return 0;
+	}
+
+	/* It's a plain file name */
+	return 0;
 }
   
 
@@ -897,38 +909,40 @@ amiga_is_absolute_path(const char *f)
  * @return
  */
 ULONG amigaos_debug_callback(struct Hook *hook, struct Task *currentTask,
-					   struct KernelDebugMessage *dbgmsg)
+						struct KernelDebugMessage *dbgmsg)
 {
 
-    struct amigaos_hook_data *debug_data = (struct amigaos_hook_data *)hook->h_Data;
-    struct ExecIFace *IExec = (struct ExecIFace *)SysBase->MainInterface;
+	struct amigaos_hook_data *debug_data = (struct amigaos_hook_data *)hook->h_Data;
+	struct ExecIFace *IExec = (struct ExecIFace *)SysBase->MainInterface;
 	struct debugger_message *msg;
 	
- 	/* Never suspend if the signalling task is gdb */
- 	if (currentTask != (struct Task *)debug_data->current_process)
- 		return 0;
+	/* Never suspend if the signalling task is gdb */
+	if (currentTask != (struct Task *)debug_data->current_process) {
+		return 0;
+	}
 	dprintf("amigaos_debug_callback(): %4d from task: %p\n",dbgmsg->type,currentTask);
- 		
+
 	/* It's our current target, send a message */
 	msg = get_msg_packet();
 	msg->process = (struct Process *)currentTask;
 
- 	dprintf("dbmsg->type = %ld, msg = %p\n", dbgmsg->type, msg);
+	dprintf("dbmsg->type = %ld, msg = %p\n", dbgmsg->type, msg);
 
-	if (debug_count < 100)
+	if (debug_count < 100) {
 		debug_buffer[debug_count] = dbgmsg->type;
+	}
 	debug_count++;
 
-  	switch (dbgmsg->type)
-   	{
-   		case DBHMT_REMTASK:
-			/* The task is terminating */			
+	switch (dbgmsg->type)
+	{
+		case DBHMT_REMTASK:
+			/* The task is terminating */
 			dprintf("Removing task\n");	
 			msg->flags = TASK_TERMINATED;
 			msg->signal = -1;
 			IExec->PutMsg(debug_data->debugger_port, (struct Message *)msg);
 			return 1;
-			
+
 		case DBHMT_EXCEPTION:
 			/* Copy exception context */
 			exc_dummy = *dbgmsg->message.context;
@@ -970,7 +984,7 @@ ULONG amigaos_debug_callback(struct Hook *hook, struct Task *currentTask,
 			
 			return 0;
 	}
-	
+
 	return 0;
 }
 
@@ -982,13 +996,13 @@ amigaos_open(char *name, int from_tty)
 {
 //printf("DEBUG: amigos_open()\n");
 
-    FUNC;
-  
-    dprintf("name = %s, from_tty = %d\n", name, from_tty);
-  
-    amiga_init();
-  
-    FUNCX;
+	FUNC;
+
+	dprintf("name = %s, from_tty = %d\n", name, from_tty);
+
+	amiga_init();
+
+	FUNCX;
 }
 
 
@@ -998,95 +1012,94 @@ amigaos_close(int quitting)
 	int i;
 //printf("DEBUG: amigaos_close()\n");
 
-    FUNC;
- 
-    printf("quitting = %d\n", quitting);
+	FUNC;
 
-    amiga_term();
-  
-    FUNCX;
+	printf("quitting = %d\n", quitting);
+
+	amiga_term();
+
+	FUNCX;
 }
 
 
 static struct Process *find_process_by_name(char *name)
 {
-    struct Node *process;
+	struct Node *process;
 
 //printf("DEBUG: find_process_by_name()\n");
 
 	return (struct Process *)IExec->FindTask(name);
 
-/*    IExec->Disable();
-  
-    for (process = ((struct ExecBaseInternal *)SysBase)->TaskSuspend.lh_Head;
+/*	IExec->Disable();
+
+	for (process = ((struct ExecBaseInternal *)SysBase)->TaskSuspend.lh_Head;
 		 process->ln_Succ;
 		 process = process->ln_Succ)
-    {
+	{
 		if (strcasecmp(process->ln_Name, name) == 0)
 		{
 			IExec->Enable();
 			return (struct Process *)process;
 		}
-    }
- 
-    for (process = SysBase->TaskWait.lh_Head;
+	}
+
+	for (process = SysBase->TaskWait.lh_Head;
 		 process->ln_Succ;
 		 process = process->ln_Succ)
-    {
+	{
 		if (strcasecmp(process->ln_Name, name) == 0)
 		{
 			IExec->Enable();
 			return (struct Process *)process;
 		}
-    }
-  
-    for (process = SysBase->TaskReady.lh_Head;
+	}
+
+	for (process = SysBase->TaskReady.lh_Head;
 		 process->ln_Succ;
 		 process = process->ln_Succ)
-    {
+	{
 		if (strcasecmp(process->ln_Name, name) == 0)
 		{
 			IExec->Enable();
 			return (struct Process *)process;
 		}
-    }
-  
-    IExec->Enable();
-*/  
-    return (struct Process *)process;
+	}
+
+	IExec->Enable();
+*/
+	return (struct Process *)process;
 }
 
 
 static BPTR 
 get_seglist(struct Process *pProcess)
 {
-    uint32 *array;
-    BPTR segList;
- 
- //printf("DEBUG: get_seglist()\n");
-  
-    /* Can only do that for processes right now */
-    if (pProcess->pr_Task.tc_Node.ln_Type != NT_PROCESS)
-    {
-		return 0;
-    }
-  
-    /* Get the seglist of the process, and re-open it's elf file */
-    array = BADDR(pProcess->pr_SegArray);
-    segList = array[3];
+	uint32 *array;
+	BPTR segList;
 
-    /* If the seglist is 0, it's been shell launched, so we need to
-       retrieve it's cli */
-    if (segList == 0)
-    {
+//printf("DEBUG: get_seglist()\n");
+
+	/* Can only do that for processes right now */
+	if (pProcess->pr_Task.tc_Node.ln_Type != NT_PROCESS)
+	{
+		return 0;
+	}
+
+	/* Get the seglist of the process, and re-open it's elf file */
+	array = BADDR(pProcess->pr_SegArray);
+	segList = array[3];
+
+	/* If the seglist is 0, it's been shell launched, so we need to retrieve it's cli */
+	if (segList == 0)
+	{
 		struct CommandLineInterface *cli = BADDR(pProcess->pr_CLI);
 		if (!cli)
 			return 0;
 	
 		segList = cli->cli_Module;
-    }
-  
-    return segList;
+	}
+
+	return segList;
 }
   
 static char *
@@ -1094,122 +1107,120 @@ amigaos_pid_to_exec_file (int pid)
 {
 //printf("DEBUG: amigaos_pid_to_exec_file()\n");
 
-    struct Process *pProcess = (struct Process *)pid;
-    char *filename = 0;
-    BPTR segList;
-    Elf32_Handle hElf;
-  
-    FUNC; 
-    dprintf("pid = %x\n", pid);
-  
-    segList = get_seglist(pProcess);
-  
-    dprintf("process = %p, seglist = %08lx\n", pProcess, segList);
-   
-    IDOS->GetSegListInfoTags(segList, 
-							 GSLI_ElfHandle,      &hElf,
-							 TAG_DONE);
+	struct Process *pProcess = (struct Process *)pid;
+	char *filename = 0;
+	BPTR segList;
+	Elf32_Handle hElf;
 
-    if (!hElf)
-    {
+	FUNC; 
+	dprintf("pid = %x\n", pid);
+
+	segList = get_seglist(pProcess);
+
+	dprintf("process = %p, seglist = %08lx\n", pProcess, segList);
+
+	IDOS->GetSegListInfoTags(segList, 
+							GSLI_ElfHandle,	&hElf,
+							TAG_DONE);
+
+	if (!hElf)
+	{
 		FUNCX;
 		return 0;
-    }
-    			   
-    hElf = IElf->OpenElfTags(OET_ElfHandle, exec_elfhandle, TAG_DONE);
+	}
 
-    IElf->GetElfAttrsTags((Elf32_Handle)exec_elfhandle, 
+	hElf = IElf->OpenElfTags(OET_ElfHandle, exec_elfhandle, TAG_DONE);
+
+	IElf->GetElfAttrsTags((Elf32_Handle)exec_elfhandle, 
 						  EAT_FileName, &filename, 
 						  TAG_DONE);
 	
-    FUNCX;							
-    return filename;				
-}				
-				
-  
+	FUNCX;
+	return filename;
+}
+
+
 static void 
 amigaos_attach (struct target_ops *ops, char *args, int from_tty)
 {
-    struct Process *pProcess;
-    uint32 *array;
-    struct debugger_message *msg;
+	struct Process *pProcess;
+	uint32 *array;
+	struct debugger_message *msg;
 	struct PseudoSegList *seglist;
 
 //printf("DEBUG: amigaos_attach(): %s\n", args);
 
+	FUNC; 
+	dprintf("args = %s, from_tty = %d\n", args, from_tty);
 
-    FUNC; 
-    dprintf("args = %s, from_tty = %d\n", args, from_tty);
-  
-    if (!args)
+	if (!args) {
 		error_no_arg("Need a process address or process name\n");
-  
-    amiga_init();
+	}
 
-    /* Get either by address, or by name */    
-    if (args[0] == '0' && args[1] == 'x')
-    {
+	amiga_init();
+
+	/* Get either by address, or by name */    
+	if (args[0] == '0' && args[1] == 'x')
+	{
 		pProcess = (struct Process *)strtol(args, 0, 0);  
-    }
-    else
-    {
+	} else {
 		pProcess = find_process_by_name(args);
-    }
-  
-    if (pProcess == 0)
-    {
+	}
+
+	if (pProcess == 0)
+	{
 		error ("Can't find process \"%s\"\n", args);
-    }
-  
+	}
+
 	dprintf("Debugging process %p\n", pProcess);
-  
-    /* Can only debug processes right now */
-    if (pProcess->pr_Task.tc_Node.ln_Type != NT_PROCESS)
-    {
+
+	/* Can only debug processes right now */
+	if (pProcess->pr_Task.tc_Node.ln_Type != NT_PROCESS)
+	{
 		error ("Can't find debug info for task \"%s\"\n", args);
-    }
-          
-    /* Get the seglist and elf handle of the process */
-    exec_seglist = get_seglist(pProcess);
-  
-    if (!exec_seglist)
-    {
+	}
+
+	/* Get the seglist and elf handle of the process */
+	exec_seglist = get_seglist(pProcess);
+
+	if (!exec_seglist)
+	{
 		error ("Can't find debug info for task \"%s\"\n", args);
-    }
+	}
 
-    seglist_is_mine = FALSE;
+	seglist_is_mine = FALSE;
 
-    IDOS->GetSegListInfoTags(exec_seglist, 
-							 GSLI_ElfHandle, &exec_elfhandle,
-							 GSLI_Native, &seglist,
-							 TAG_DONE);
+	IDOS->GetSegListInfoTags(exec_seglist,
+							GSLI_ElfHandle,	&exec_elfhandle,
+							GSLI_Native,		&seglist,
+							TAG_DONE);
 
-    if (!exec_elfhandle)
-    {
+	if (!exec_elfhandle)
+	{
 		exec_seglist = 0;
 		error ("Process \"%s\" is no ELF binary\n", args);
-    }
+	}
 
 	current_elfhandle = exec_elfhandle;
-	
-    dprintf("process seglist = %lx, elfhandle = %p\n", exec_seglist, exec_elfhandle);
-  
-    /* Suspend the task */
-    dprintf("Process state: %d\n",pProcess->pr_Task.tc_State);
-    if (pProcess->pr_Task.tc_State == TS_READY || pProcess->pr_Task.tc_State == TS_WAIT)
-    {
+
+	dprintf("process seglist = %lx, elfhandle = %p\n", exec_seglist, exec_elfhandle);
+
+	/* Suspend the task */
+	dprintf("Process state: %d\n",pProcess->pr_Task.tc_State);
+	if (pProcess->pr_Task.tc_State == TS_READY || pProcess->pr_Task.tc_State == TS_WAIT)
+	{
 		dprintf("Suspending task %p\n", pProcess);
 		IExec->SuspendTask((struct Task *)pProcess, 0);
-    }
-  
-    /* Send attach message */
-    dprintf("Sending attach message\n"); 
-    msg = get_msg_packet();
-    msg->process = (struct Process *)pProcess;
-    msg->flags = TASK_ATTACHED;
-    IExec->PutMsg(debug_data.debugger_port, (struct Message *)msg);
-     
-    /* See if the process is crashed, and send the crash as another message */
+	}
+
+	/* Send attach message */
+	dprintf("Sending attach message\n"); 
+	msg = get_msg_packet();
+	msg->process = (struct Process *)pProcess;
+	msg->flags = TASK_ATTACHED;
+	IExec->PutMsg(debug_data.debugger_port, (struct Message *)msg);
+
+	/* See if the process is crashed, and send the crash as another message */
 					/*
 					if (pProcess->pr_Task.tc_State == TS_CRASHED)
 					{
@@ -1218,33 +1229,33 @@ amigaos_attach (struct target_ops *ops, char *args, int from_tty)
 					msg->flags = 0;
 					IExec->PutMsg(debug_data.debugger_port, (struct Message *)msg);
 					}*/
-    
-    if(pProcess->pr_Task.tc_State == TS_CRASHED)
-    {
-    	pProcess->pr_Task.tc_State = TS_SUSPENDED;
-    }
-    IDebug->AddDebugHook((struct Task *)pProcess, &debug_hook);
 
-    debug_data.current_process = pProcess;
-    
-    dprintf("push_target\n");
-    push_target(&amigaos_ops);
-    dprintf("clear_proceed_status\n");
-    clear_proceed_status ();
-    dprintf("insert_breakpoints\n");
-    insert_breakpoints ();     
-  
-    inferior_ptid = pid_to_ptid ((int)debug_data.current_process);
-  
-    dprintf("add_thread\n");
-    add_thread(inferior_ptid);
-  
-    inferior_created = TRUE;  
-    
-    dprintf("attaching complete\n");  
-    is_attach = TRUE;
-  
-    FUNCX;
+	if(pProcess->pr_Task.tc_State == TS_CRASHED)
+	{
+		pProcess->pr_Task.tc_State = TS_SUSPENDED;
+	}
+	IDebug->AddDebugHook((struct Task *)pProcess, &debug_hook);
+
+	debug_data.current_process = pProcess;
+
+	dprintf("push_target\n");
+	push_target(&amigaos_ops);
+	dprintf("clear_proceed_status\n");
+	clear_proceed_status ();
+	dprintf("insert_breakpoints\n");
+	insert_breakpoints ();
+
+	inferior_ptid = pid_to_ptid ((int)debug_data.current_process);
+
+	dprintf("add_thread\n");
+	add_thread(inferior_ptid);
+
+	inferior_created = TRUE;  
+
+	dprintf("attaching complete\n");  
+	is_attach = TRUE;
+
+	FUNCX;
 }
 
 
@@ -1253,22 +1264,22 @@ amigaos_detach (struct target_ops *ops, char *args, int from_tty)
 {
 //printf("DEBUG: amigaos_detach()\n");
 
-    FUNC;
-  
-    dprintf("args = %s, from_tty = %d\n", args, from_tty);
-  
-    if (is_attach)
-    {     
+	FUNC;
+
+	dprintf("args = %s, from_tty = %d\n", args, from_tty);
+
+	if (is_attach)
+	{
 		IExec->RestartTask((struct Task *)debug_data.current_process, 0);
 		debug_data.current_process = 0;
 		inferior_created = FALSE;
 		is_attach = FALSE;
 		unpush_target (&amigaos_ops);
-        
-		amigaos_exec_close_hook(0);
-    }
 
-    FUNCX;  
+		amigaos_exec_close_hook(0);
+	}
+
+	FUNCX;
 }
 
 static int
@@ -1276,20 +1287,20 @@ amigaos_can_run (void)
 {
 //printf("DEBUG: amigaos_can_run()\n");
 
-    return 1;
+	return 1;
 }
 
 static void
 amigaos_create_inferior (struct target_ops *ops, char *exec_file, char *args, char **env, int from_tty)
 {
-    char *io_desc;
+	char *io_desc;
 
-    FUNC;
-  
-    dprintf("Creating inferior process: exec_file = %s, args = %s, env = %p, from_tty = %ld\n", exec_file, args, env, from_tty);
-  
-    if (inferior_created)
-    {
+	FUNC;
+
+	dprintf("Creating inferior process: exec_file = %s, args = %s, env = %p, from_tty = %ld\n", exec_file, args, env, from_tty);
+
+	if (inferior_created)
+	{
 		printf_unfiltered("A program is already running:\n");
 		target_files_info();
 		if (query("Kill it? "))
@@ -1302,64 +1313,63 @@ amigaos_create_inferior (struct target_ops *ops, char *exec_file, char *args, ch
 		}
 		else
 			error ("Program not killed\n");
-    }
-  
-    amiga_init();
-  
-    if (exec_file == 0)
+}
+
+	amiga_init();
+
+	if (exec_file == 0) {
 		exec_file = get_exec_file(1);
-     
-    push_target(&amigaos_ops);
-    clear_proceed_status ();
-    insert_breakpoints ();
+	}
+
+	push_target(&amigaos_ops);
+	clear_proceed_status ();
+	insert_breakpoints ();
 
 	IExec->Forbid();  // Make sure we can suspend the task before it starts running
-    debug_data.current_process = IDOS->CreateNewProcTags(
-			NP_Seglist,         exec_seglist,
-			NP_FreeSeglist,     FALSE,
+	debug_data.current_process = IDOS->CreateNewProcTags(
+			NP_Seglist,			exec_seglist,
+			NP_FreeSeglist,		FALSE,
 //			NP_Child,			TRUE,
-			NP_Name,            exec_file,
-			NP_Cli,             TRUE,
-			NP_Arguments,       args,
-			NP_Input,	    	IDOS->Input(),
-			NP_CloseInput,      FALSE,
-			NP_Output,          IDOS->Output(),
-			NP_CloseOutput,     FALSE,
-			NP_Error,           IDOS->ErrorOutput(),
-			NP_CloseError,      FALSE,
+			NP_Name,			exec_file,
+			NP_Cli,				TRUE,
+			NP_Arguments,		args,
+			NP_Input,			IDOS->Input(),
+			NP_CloseInput,		FALSE,
+			NP_Output,			IDOS->Output(),
+			NP_CloseOutput,		FALSE,
+			NP_Error,			IDOS->ErrorOutput(),
+			NP_CloseError,		FALSE,
 			(homedir ? NP_ProgramDir: TAG_IGNORE),homedir,
 			TAG_DONE
 		);
 
-     if (debug_data.current_process)
-    {
+	if (debug_data.current_process)
+	{
 		dprintf("Process created: %p\n", debug_data.current_process)
 		dprintf("Task: %p\n", IExec->FindTask(exec_file));
-    }
-    else
-    {			    
+	} else {
 		error ("Can't create process\n");
-    }
+	}
 
-    dprintf("Suspending Task\n");
-    IExec->SuspendTask((struct Task *)debug_data.current_process,0);
-	IExec->Permit();  
+	dprintf("Suspending Task\n");
+	IExec->SuspendTask((struct Task *)debug_data.current_process,0);
+	IExec->Permit();
 
 	/* Dont reuse this, note that the home dir get's unlocked by dos
 	 * when the process finishes */
-    homedir = ZERO;
+	homedir = ZERO;
 
 	IDebug->AddDebugHook((struct Task *)debug_data.current_process, &debug_hook);
 
-    inferior_ptid = pid_to_ptid ((int)debug_data.current_process);
-    dprintf("inferior_ptid=%p\n",inferior_ptid);
-    add_thread(inferior_ptid);
+	inferior_ptid = pid_to_ptid ((int)debug_data.current_process);
+	dprintf("inferior_ptid=%p\n",inferior_ptid);
+	add_thread(inferior_ptid);
 
-    /* FIXME: This is from the gdb source: You should call clear_proceed_status before calling proceed.  */
-    proceed ((CORE_ADDR) -1, GDB_SIGNAL_0, 0);
-    inferior_created = TRUE;
-  
-    FUNCX;
+	/* FIXME: This is from the gdb source: You should call clear_proceed_status before calling proceed.  */
+	proceed ((CORE_ADDR) -1, GDB_SIGNAL_0, 0);
+	inferior_created = TRUE;
+
+	FUNCX;
 }
 
 static void
@@ -1367,10 +1377,10 @@ amigaos_kill_inferior (struct target_ops *ops)
 {
 //printf("DEBUG: amigaos_kill_inferior()\n");
 
-    FUNC;
-  
-    if (inferior_created && debug_data.current_process)
-    {
+	FUNC;
+
+	if (inferior_created && debug_data.current_process)
+	{
 		dprintf("Killing %p\n", debug_data.current_process);
 
 /* FIXME: do not use RemTask on a Process!!! */
@@ -1379,15 +1389,15 @@ amigaos_kill_inferior (struct target_ops *ops)
 
 		IExec->RemTask((struct Task *)debug_data.current_process);
 		debug_data.current_process = 0;
-     
+
 		inferior_created = FALSE;
 
 		dprintf("unpush target\n");
-     
+
 		unpush_target (&amigaos_ops);
-    }
-  
-    FUNCX;
+	}
+
+	FUNCX;
 }
 
 static void 
@@ -1395,57 +1405,54 @@ amigaos_resume (struct target_ops *ops, ptid_t ptid, int step,  enum gdb_signal 
 {
 	struct ExceptionContext *context = context_ptr;
 	struct Task *me = IExec->FindTask(NULL);
-    
-    dprintf("resume ptid = %08x, step = %d, signal = %d, process = %p\n",
-			PIDGET(ptid), step, signal, debug_data.current_process);	
 
-    if (0)   ///(context->Traptype != 0)
-    {
+	dprintf("resume ptid = %08x, step = %d, signal = %d, process = %p\n",
+			PIDGET(ptid), step, signal, debug_data.current_process);
+
+	if (0)   ///(context->Traptype != 0)
+	{
 			printf("not resuming, signal pending (%lx)\n", context->Traptype);
 			FUNCX;
 			return;
-    }
+	}
 
 #if 0
-    if (step)
-    {
+	if (step)
+	{
 		/* Set single-step */
 		context->msr |= MSR_TRACE_ENABLE;
 		dprintf("Single step\n");
-    }
-    else
-    {
+	}
+	else
+	{
 		dprintf("No single step\n");
 		context->msr &= ~MSR_TRACE_ENABLE;
-    }
+	}
 #endif
-    dprintf("RestartTask(%p) at pc %08lx\n", debug_data.current_process, context->ip);
-    IExec->RestartTask((struct Task *)debug_data.current_process, 0);
+	dprintf("RestartTask(%p) at pc %08lx\n", debug_data.current_process, context->ip);
+	IExec->RestartTask((struct Task *)debug_data.current_process, 0);
 }
- 
 
 
-
- 
 static ptid_t 
 amigaos_wait (struct target_ops *ops, ptid_t ptid, struct target_waitstatus *status, int step)
 {
-    struct ExceptionContext *context;
-    struct Process *process = (struct Process *)PIDGET(ptid);
-    uint32 sigRec;
-    struct debugger_message *msg;
-  
-    FUNC;
+	struct ExceptionContext *context;
+	struct Process *process = (struct Process *)PIDGET(ptid);
+	uint32 sigRec;
+	struct debugger_message *msg;
 
-    if (process == (struct Process *)0xffffffff)
-    {    
+	FUNC;
+
+	if (process == (struct Process *)0xffffffff)
+	{
 		process = debug_data.current_process;
-    }
-  
-    dprintf("wait ptid = %p (%08x), status = %p\n", process, PIDGET(ptid), status);
-  
-    while (1)
-    {
+	}
+
+	dprintf("wait ptid = %p (%08x), status = %p\n", process, PIDGET(ptid), status);
+
+	while (1)
+	{
 		/* Check if our task is still there */
 		/*   if (FALSE == is_process_alive(process))
 			 {
@@ -1455,15 +1462,15 @@ amigaos_wait (struct target_ops *ops, ptid_t ptid, struct target_waitstatus *sta
 			 dprintf("Target has exited\n");
 			 return pid_to_ptid ((int)process);
 			 }*/
-    
-    	if (debug_data.current_process == NULL)
-    	{
+
+		if (debug_data.current_process == NULL)
+		{
 			 status->kind = TARGET_WAITKIND_EXITED;
 			 status->value.integer = 0;
 
 			 dprintf("Target has exited\n");
 			 return pid_to_ptid ((int)process);
-    	}
+		}
 
 		dprintf("Waiting for message (process=%p)\n",debug_data.current_process);
 
@@ -1472,7 +1479,7 @@ amigaos_wait (struct target_ops *ops, ptid_t ptid, struct target_waitstatus *sta
 		sigRec = IExec->Wait(SIGBREAKF_CTRL_D|SIGBREAKF_CTRL_C|1<<debug_data.debugger_port->mp_SigBit);
 
 		dprintf("Waking up\n");
-    
+
 		/* Check for CTRL-D, and exit if it's been sent */
 		if (sigRec & SIGBREAKF_CTRL_D)
 		{
@@ -1483,29 +1490,29 @@ amigaos_wait (struct target_ops *ops, ptid_t ptid, struct target_waitstatus *sta
 			FUNCX;
 			return pid_to_ptid ((int)process);
 		}
-    
+
 		/* Check for CTRL-C, and try to suspend the inferior */
 		if (sigRec & SIGBREAKF_CTRL_C)
 		{
 			IExec->SuspendTask((struct Task *)process, 0);
-       
+
 			status->kind = TARGET_WAITKIND_STOPPED;
 			status->value.sig = GDB_SIGNAL_TRAP;
-       
+
 			FUNCX;
 			return pid_to_ptid ((int)process);
 		}
-     
+
 		while ((msg = (struct debugger_message *)IExec->GetMsg(debug_data.debugger_port)))
 		{
 			//context = (struct ExceptionContext *)/*FIXME: msg->*/((struct ETask *)process->pr_Task.tc_ETask)->Context;
-   			context = context_ptr;
-			
+			context = context_ptr;
+
 			dprintf("Got a signal %d (%s) from process %p @ ip %08lx (ctx=%08lx, msg=%08lx)\n", 
 					trap_to_signal(context, msg->flags), 
 					gdb_signal_to_name (trap_to_signal(context, msg->flags)),
 					process, context->ip, context, msg);
-	
+
 			if (msg->signal != -1)
 			{
 				/* Got a "signal"... */
@@ -1556,7 +1563,7 @@ amigaos_wait (struct target_ops *ops, ptid_t ptid, struct target_waitstatus *sta
 						//printf("                                               Unknown signal (error)\n");
 						break;
 				}
-      
+
 				/* Get rid of the message */
 				drop_msg_packet(msg);
 	
@@ -1566,7 +1573,7 @@ amigaos_wait (struct target_ops *ops, ptid_t ptid, struct target_waitstatus *sta
 				FUNCX;
 				return pid_to_ptid ((int)process);
 			}
-      
+
 			/* We get here when we got a message, but it wasn't a real signal. This can happen when
 			   a new task is attached, in which case we stop as if we would single step */
 	 
@@ -1576,8 +1583,8 @@ amigaos_wait (struct target_ops *ops, ptid_t ptid, struct target_waitstatus *sta
 				status->kind = TARGET_WAITKIND_STOPPED;
 				status->value.sig = GDB_SIGNAL_TRAP;
 			
-			    drop_msg_packet(msg);
-				FUNCX;          
+				drop_msg_packet(msg);
+				FUNCX;
 				return pid_to_ptid ((int)process);
 			}
 			else if (msg->flags & TASK_OPENLIB)
@@ -1597,7 +1604,7 @@ amigaos_wait (struct target_ops *ops, ptid_t ptid, struct target_waitstatus *sta
 				
 				drop_msg_packet(msg);
 				
-				FUNCX;          
+				FUNCX;
 				return pid_to_ptid ((int)process);
 			}
 			else if (msg->flags & TASK_CLOSELIB)
@@ -1614,39 +1621,40 @@ amigaos_wait (struct target_ops *ops, ptid_t ptid, struct target_waitstatus *sta
 			/* It wasn't a trap (hence no signal) */
 			drop_msg_packet(msg);
 		}
-    }
-    
-    FUNCX;
+	}
+
+	FUNCX;
 }
 
 static void 
 amigaos_fetch_registers (struct target_ops *ops, struct regcache *regcache, int regno)
 {
-    int i;
-    struct ExceptionContext *context;
-    struct gdbarch_tdep *tdep = gdbarch_tdep (target_gdbarch);
-    struct regcache *current_regcache = get_current_regcache ();
-    const int pc_regnum = gdbarch_pc_regnum (target_gdbarch);
+	int i;
+	struct ExceptionContext *context;
+	struct gdbarch_tdep *tdep = gdbarch_tdep (target_gdbarch);
+	struct regcache *current_regcache = get_current_regcache ();
+	const int pc_regnum = gdbarch_pc_regnum (target_gdbarch);
 
-    FUNC;
-  
-  	if (debug_data.current_process)
+	FUNC;
+
+	if (debug_data.current_process) {
 		context = context_ptr;
-	else
+	} else {
 		return;
+	}
 
-    dprintf("inferior_ptid=%p\n",inferior_ptid);
-    dprintf("regno = %d (%s)\n", regno, gdbarch_register_name (target_gdbarch, regno));
-    dprintf("context = %p, sp = %lx, pc = %lx, lr = %lx\n", context, context->gpr[1], context->ip, context->lr);
+	dprintf("inferior_ptid=%p\n",inferior_ptid);
+	dprintf("regno = %d (%s)\n", regno, gdbarch_register_name (target_gdbarch, regno));
+	dprintf("context = %p, sp = %lx, pc = %lx, lr = %lx\n", context, context->gpr[1], context->ip, context->lr);
 
-    if (regno == -1)
-    {
+	if (regno == -1)
+	{
 		for (i = 0; i < 31; i++)
 			regcache_raw_supply(current_regcache, i, (void *)&context->gpr[i]);
-     
+
 		for (i = 0; i < 31; i++)
 			regcache_raw_supply(current_regcache, 32+i, (void *)&context->fpr[i]);
-      
+
 		regcache_raw_supply (current_regcache, pc_regnum, (void *) &context->ip);
 		regcache_raw_supply (current_regcache, tdep->ppc_ps_regnum, (void *) &context->msr);
 		regcache_raw_supply (current_regcache, tdep->ppc_cr_regnum, (void *) &context->cr);
@@ -1654,9 +1662,7 @@ amigaos_fetch_registers (struct target_ops *ops, struct regcache *regcache, int 
 		regcache_raw_supply (current_regcache, tdep->ppc_ctr_regnum, (void *) &context->ctr);
 		regcache_raw_supply (current_regcache, tdep->ppc_xer_regnum, (void *) &context->xer);
 		regcache_raw_supply (current_regcache, tdep->ppc_fpscr_regnum, (void *) &context->fpscr);
-    }
-    else
-    {
+	} else {
 		if (regno >= 0 && regno <= 31)
 			regcache_raw_supply (current_regcache, regno, (void *) &context->gpr[regno]);
 		else if (regno >= 32 && regno <= 63)
@@ -1675,27 +1681,25 @@ amigaos_fetch_registers (struct target_ops *ops, struct regcache *regcache, int 
 			regcache_raw_supply (current_regcache, tdep->ppc_xer_regnum, (void *) &context->xer);
 		else if (regno == tdep->ppc_fpscr_regnum)
 			regcache_raw_supply (current_regcache, tdep->ppc_fpscr_regnum, (void *) &context->fpscr);
-    }  
+	}
 }
 
 static void 
 amigaos_store_registers (struct target_ops *ops, struct regcache *regcache, int regno)
 {
-    int i;
+	int i;
 
 	struct ExceptionContext *context = context_ptr;
-    struct gdbarch_tdep *tdep = gdbarch_tdep (target_gdbarch);
+	struct gdbarch_tdep *tdep = gdbarch_tdep (target_gdbarch);
 
-    struct regcache *current_regcache = get_current_regcache ();
-    const int pc_regnum = gdbarch_pc_regnum (target_gdbarch);
+	struct regcache *current_regcache = get_current_regcache ();
+	const int pc_regnum = gdbarch_pc_regnum (target_gdbarch);
 
-    FUNC;
-    dprintf("regno = %d (%s)\n", regno,  gdbarch_register_name (target_gdbarch, regno));
+	FUNC;
+	dprintf("regno = %d (%s)\n", regno,  gdbarch_register_name (target_gdbarch, regno));
 
-
-
-    if (regno == -1)
-    {
+	if (regno == -1) 
+	{
 		for (i = 0; i < 32; i++)
 			regcache_raw_collect(current_regcache, i, (void *) &context->gpr[i]);
 		for (i = 0; i < 32; i++)
@@ -1708,9 +1712,7 @@ amigaos_store_registers (struct target_ops *ops, struct regcache *regcache, int 
 		regcache_raw_collect (current_regcache, tdep->ppc_ctr_regnum, (void *) &context->ctr);
 		regcache_raw_collect (current_regcache, tdep->ppc_xer_regnum, (void *) &context->xer);
 		regcache_raw_collect (current_regcache, tdep->ppc_fpscr_regnum, (void *) &context->fpscr);
-    }
-    else
-    {
+	} else {
 		if (regno >= 0 && regno <= 31)    
 			regcache_raw_collect(current_regcache, regno, (void *) &context->gpr[regno]);
 		else if (regno >= 32 && regno <= 63)
@@ -1729,16 +1731,16 @@ amigaos_store_registers (struct target_ops *ops, struct regcache *regcache, int 
 			regcache_raw_collect (current_regcache, tdep->ppc_xer_regnum, (void *) &context->xer);
 		else if (regno == tdep->ppc_fpscr_regnum)
 			regcache_raw_collect (current_regcache, tdep->ppc_fpscr_regnum, (void *) &context->fpscr);
-    }
-  
-    FUNCX;
+	}
+
+	FUNCX;
 }
 
 static void 
 amigaos_prepare_to_store (struct regcache *regcache)
 {
-    FUNC; 
-    FUNCX;
+	FUNC; 
+	FUNCX;
 }
 
 
@@ -1748,30 +1750,27 @@ amigaos_xfer_memory (CORE_ADDR memaddr, gdb_byte *myaddr, int len,
 					 struct mem_attrib *attrib,
 					 struct target_ops *target)
 {
-    dprintf("amigaos_xfer_memory(memaddr = %p, myaddr = %p, len = %d, write = %d, attrib = %p, target = %p)\n",
+	dprintf("amigaos_xfer_memory(memaddr = %p, myaddr = %p, len = %d, write = %d, attrib = %p, target = %p)\n",
 			(void*)memaddr, myaddr, len, write, attrib, target);
-	
-    if (write)
-    {
-    	dprintf("Writing %p to %p (was %p)\n",*(uint32*)myaddr,memaddr,*(void**)memaddr);
+
+	if (write)
+	{
+		dprintf("Writing %p to %p (was %p)\n",*(uint32*)myaddr,memaddr,*(void**)memaddr);
 		memcpy((void*)memaddr, (void*)myaddr, len);
 		IExec->CacheClearE((void*)memaddr, len, CACRF_ClearI);
 		dprintf("Now is %p\n",*(void**)memaddr);
-    }
-    else
-    {
+	} else {
 		memcpy((void*)myaddr, (void*)memaddr, len);
-    }	
+	}
 
-    return len;
+	return len;
 }
 
 
 static void 
 amigaos_files_info (struct target_ops *target)
 {
-    printf_unfiltered ("Debugging process %p\n", 
-					   debug_data.current_process);
+	printf_unfiltered ("Debugging process %p\n", debug_data.current_process);
 }
  
 static void 
@@ -1796,141 +1795,146 @@ amigaos_terminal_ours (void)
 static void
 amigaos_terminal_info (char *args, int from_tty)
 {
-    FUNC;
+	FUNC;
 
-    printf_unfiltered("Yes, we have a terminal (STUB)\n");
+	printf_unfiltered("Yes, we have a terminal (STUB)\n");
 
-    FUNCX;
+	FUNCX;
 }
 
 
 static void 
 amigaos_mourn_inferior (struct target_ops *ops)
 {
-    FUNC;
- 
-    unpush_target(&amigaos_ops);
-    generic_mourn_inferior();
-  
-    FUNCX;
+	FUNC;
+
+	unpush_target(&amigaos_ops);
+	generic_mourn_inferior();
+
+	FUNCX;
 }
 
 
 static void 
 amigaos_stop (ptid_t ptid)
 {
-    FUNC;
-  
-    normal_stop ();
-    inferior_ptid = null_ptid;
-  
-    FUNCX;
+	FUNC;
+
+	normal_stop ();
+	inferior_ptid = null_ptid;
+
+	FUNCX;
 }
 
 
 static int
 amigaos_memory_insert_breakpoint (struct gdbarch *arch, struct bp_target_info *target)
 {
-  int val;
-  const unsigned char *bp;
-  int bplen;
-  uint32 oldAttr;
-  APTR stack;
-  CORE_ADDR host_addr;
-  CORE_ADDR addr = target -> placed_address;
+	int val;
+	const unsigned char *bp;
+	int bplen;
+	uint32 oldAttr;
+	APTR stack;
+	CORE_ADDR host_addr;
+	CORE_ADDR addr = target -> placed_address;
 
-  /* Relocate the address manually if it elf related */
-  if (addr >= code_elf_addr && addr < code_elf_addr + code_size)
-	  host_addr = (CORE_ADDR)((char*)addr - (char*)code_elf_addr + (char*)code_relocated_addr);
-  else
-	  host_addr = addr;
+	/* Relocate the address manually if it elf related */
+	if (addr >= code_elf_addr && addr < code_elf_addr + code_size) {
+		host_addr = (CORE_ADDR)((char*)addr - (char*)code_elf_addr + (char*)code_relocated_addr);
+	} else {
+		host_addr = addr;
+	}
 
-  dprintf("Trying to set breakpoint at %p (host_addr=%p, code_elf_addr=%p, code_size=%p)\n", addr, host_addr, code_elf_addr,(void*)code_size);
-  
-  /* Determine appropriate breakpoint contents and size for this address.  */
-  bp = gdbarch_breakpoint_from_pc (arch, &addr, &bplen);
-  if (bp == NULL)
-    error ("Software breakpoints not implemented for this target.");
+	dprintf("Trying to set breakpoint at %p (host_addr=%p, code_elf_addr=%p, code_size=%p)\n", addr, host_addr, code_elf_addr,(void*)code_size);
 
-  addr = (CORE_ADDR)host_addr;
+	/* Determine appropriate breakpoint contents and size for this address.  */
+	bp = gdbarch_breakpoint_from_pc (arch, &addr, &bplen);
+	if (bp == NULL) {
+		error ("Software breakpoints not implemented for this target.");
+	}
 
-  /* Save the memory contents.  */
-  val = target_read_memory (addr, target -> shadow_contents, bplen);
+	addr = (CORE_ADDR)host_addr;
 
-  dprintf("Saved at addr %p the instruction %p\n",(void*)addr,*(void **) target -> shadow_contents);
+	/* Save the memory contents.  */
+	val = target_read_memory (addr, target -> shadow_contents, bplen);
 
-  /* Write the breakpoint.  */
-  if (val == 0)
-  {
-  	/* Go supervisor */
-	stack = IExec->SuperState();
-	
-	dprintf("Setting breakpoint at addr=%p bp=%p\n", addr, bp);
-  	/* Make sure to unprotect the memory area */
-	oldAttr = IMMU->GetMemoryAttrs((APTR)addr, 0);
-	IMMU->SetMemoryAttrs((APTR)addr, bplen, MEMATTRF_READ_WRITE);
-	
-    val = target_write_memory (addr, (char *) bp, bplen);
-	
-	/* Set old attributes again */
-	IMMU->SetMemoryAttrs((APTR)addr, bplen, oldAttr);
-	
-	/* Return to old state */
-	if (stack)
-		IExec->UserState(stack);
-  }
+	dprintf("Saved at addr %p the instruction %p\n",(void*)addr,*(void **) target -> shadow_contents);
 
-  return val;
+	/* Write the breakpoint.  */
+	if (val == 0)
+	{
+		/* Go supervisor */
+		stack = IExec->SuperState();
+
+		dprintf("Setting breakpoint at addr=%p bp=%p\n", addr, bp);
+		/* Make sure to unprotect the memory area */
+		oldAttr = IMMU->GetMemoryAttrs((APTR)addr, 0);
+		IMMU->SetMemoryAttrs((APTR)addr, bplen, MEMATTRF_READ_WRITE);
+
+		val = target_write_memory (addr, (char *) bp, bplen);
+
+		/* Set old attributes again */
+		IMMU->SetMemoryAttrs((APTR)addr, bplen, oldAttr);
+
+		/* Return to old state */
+		if (stack)
+			IExec->UserState(stack);
+	}
+
+	return val;
 }
 
 
 static int
 amigaos_memory_remove_breakpoint (struct gdbarch *arch, struct bp_target_info *target)
 {
-  const unsigned char *bp;
-  int bplen;
-  uint32 oldAttr;
-  APTR stack;
-  int val;
+	const unsigned char *bp;
+	int bplen;
+	uint32 oldAttr;
+	APTR stack;
+	int val;
 
-  CORE_ADDR host_addr;
-  CORE_ADDR addr = target -> placed_address;
+	CORE_ADDR host_addr;
+	CORE_ADDR addr = target -> placed_address;
 
-  /* Relocate the address manually if it elf related */
-  if (addr >= code_elf_addr && addr < code_elf_addr + code_size)
-	  host_addr = (CORE_ADDR)((char*)addr - (char*)code_elf_addr + (char*)code_relocated_addr);
-  else
-	  host_addr = addr;
+	/* Relocate the address manually if it elf related */
+	if (addr >= code_elf_addr && addr < code_elf_addr + code_size) {
+		host_addr = (CORE_ADDR)((char*)addr - (char*)code_elf_addr + (char*)code_relocated_addr);
+	} else {
+		host_addr = addr;
+	}
 
-  dprintf("Trying to remove breakpoint at %p (host_addr=%p, code_elf_addr=%p, code_size=%p)\n", addr, host_addr, code_elf_addr,(void*)code_size);
+	dprintf("Trying to remove breakpoint at %p (host_addr=%p, code_elf_addr=%p, code_size=%p)\n", addr, host_addr, code_elf_addr,(void*)code_size);
 
-  /* Determine appropriate breakpoint contents and size for this address.  */
-  bp = gdbarch_breakpoint_from_pc (arch, &addr, &bplen);
-  
-  if (bp == NULL)
-    error ("Software breakpoints not implemented for this target.");
+	/* Determine appropriate breakpoint contents and size for this address.  */
+	bp = gdbarch_breakpoint_from_pc (arch, &addr, &bplen);
 
-  addr = (CORE_ADDR)host_addr;
+	if (bp == NULL) {
+		error ("Software breakpoints not implemented for this target.");
+	}
 
-  /* Go supervisor */
-  stack = IExec->SuperState();
+	addr = (CORE_ADDR)host_addr;
 
-  dprintf("Clearing breakpoint at %p, i.e., restoring with instruction %p\n", addr,*(void**)target -> shadow_contents);
-  
-  /* Make sure to unprotect the memory area */
-  oldAttr = IMMU->GetMemoryAttrs((APTR)addr, 0);
-  IMMU->SetMemoryAttrs((APTR)addr, bplen, MEMATTRF_READ_WRITE);
-	
-  val = target_write_memory (addr, target -> shadow_contents, bplen);
-  
-  /* Set old attributes again */
-  IMMU->SetMemoryAttrs((APTR)addr, bplen, oldAttr);
-	
-  /* Return to old state */
-  if (stack)
-	IExec->UserState(stack);
+	/* Go supervisor */
+	stack = IExec->SuperState();
 
-  return val;
+	dprintf("Clearing breakpoint at %p, i.e., restoring with instruction %p\n", addr,*(void**)target -> shadow_contents);
+
+	/* Make sure to unprotect the memory area */
+	oldAttr = IMMU->GetMemoryAttrs((APTR)addr, 0);
+	IMMU->SetMemoryAttrs((APTR)addr, bplen, MEMATTRF_READ_WRITE);
+
+	val = target_write_memory (addr, target -> shadow_contents, bplen);
+
+	/* Set old attributes again */
+	IMMU->SetMemoryAttrs((APTR)addr, bplen, oldAttr);
+
+	/* Return to old state */
+	if (stack) {
+		IExec->UserState(stack);
+	}
+
+	return val;
 }
 
 
@@ -1940,16 +1944,16 @@ init_amigaos_ops (void)
 {
 //printf("DEBUG: init_amigaos_ops()\n");
 
-    amigaos_ops.to_shortname = "subtask";
-    amigaos_ops.to_longname = "AmigaOS 4 target process";
-    amigaos_ops.to_doc = "Debug a Task/Process running on AmigaOS 4\n"
+	amigaos_ops.to_shortname = "subtask";
+	amigaos_ops.to_longname = "AmigaOS 4 target process";
+	amigaos_ops.to_doc = "Debug a Task/Process running on AmigaOS 4\n"
 		"Use \"target subtask <process_id>\" to attach";
-    amigaos_ops.to_open = amigaos_open;
-    amigaos_ops.to_close = amigaos_close;
-    amigaos_ops.to_attach = amigaos_attach;
-    amigaos_ops.to_detach = amigaos_detach;
-    amigaos_ops.to_resume = amigaos_resume;
-    amigaos_ops.to_wait = amigaos_wait;
+	amigaos_ops.to_open = amigaos_open;
+	amigaos_ops.to_close = amigaos_close;
+	amigaos_ops.to_attach = amigaos_attach;
+	amigaos_ops.to_detach = amigaos_detach;
+	amigaos_ops.to_resume = amigaos_resume;
+	amigaos_ops.to_wait = amigaos_wait;
 /**/amigaos_ops.to_fetch_registers = amigaos_fetch_registers;
 /**/amigaos_ops.to_store_registers = amigaos_store_registers;
 /**/amigaos_ops.to_prepare_to_store = amigaos_prepare_to_store;
@@ -1958,26 +1962,25 @@ init_amigaos_ops (void)
 /**/amigaos_ops.to_files_info = amigaos_files_info;
 /**/amigaos_ops.to_insert_breakpoint = amigaos_memory_insert_breakpoint;
 /**/amigaos_ops.to_remove_breakpoint = amigaos_memory_remove_breakpoint;
-    amigaos_ops.to_terminal_init = amigaos_terminal_init;
-    amigaos_ops.to_terminal_inferior = amigaos_terminal_inferior;
-    amigaos_ops.to_terminal_ours_for_output = amigaos_terminal_ours;
-    amigaos_ops.to_terminal_ours = amigaos_terminal_ours;
-    amigaos_ops.to_terminal_info = amigaos_terminal_info;
+	amigaos_ops.to_terminal_init = amigaos_terminal_init;
+	amigaos_ops.to_terminal_inferior = amigaos_terminal_inferior;
+	amigaos_ops.to_terminal_ours_for_output = amigaos_terminal_ours;
+	amigaos_ops.to_terminal_ours = amigaos_terminal_ours;
+	amigaos_ops.to_terminal_info = amigaos_terminal_info;
 /**/amigaos_ops.to_kill = amigaos_kill_inferior;
 /**/amigaos_ops.to_create_inferior = amigaos_create_inferior;
-    amigaos_ops.to_mourn_inferior = amigaos_mourn_inferior;
+	amigaos_ops.to_mourn_inferior = amigaos_mourn_inferior;
 /**/amigaos_ops.to_can_run = amigaos_can_run;
-    amigaos_ops.to_stop = amigaos_stop;
-    amigaos_ops.to_pid_to_exec_file = amigaos_pid_to_exec_file;
-    
-    amigaos_ops.to_stratum = process_stratum;
-    amigaos_ops.to_has_all_memory = amigaos_has_all_memory;
-    amigaos_ops.to_has_memory = amigaos_has_memory;
-    amigaos_ops.to_has_stack = amigaos_has_stack;
-    amigaos_ops.to_has_registers = amigaos_has_registers;
-    amigaos_ops.to_has_execution = amigaos_has_execution;
-    amigaos_ops.to_magic = OPS_MAGIC;
+	amigaos_ops.to_stop = amigaos_stop;
+	amigaos_ops.to_pid_to_exec_file = amigaos_pid_to_exec_file;
 
+	amigaos_ops.to_stratum = process_stratum;
+	amigaos_ops.to_has_all_memory = amigaos_has_all_memory;
+	amigaos_ops.to_has_memory = amigaos_has_memory;
+	amigaos_ops.to_has_stack = amigaos_has_stack;
+	amigaos_ops.to_has_registers = amigaos_has_registers;
+	amigaos_ops.to_has_execution = amigaos_has_execution;
+	amigaos_ops.to_magic = OPS_MAGIC;
 }
 
 

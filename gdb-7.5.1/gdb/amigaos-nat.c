@@ -162,6 +162,11 @@ extern ptid_t inferior_ptid;
 static int init = FALSE;
 static int inferior_created = FALSE;
 
+/** Called from init.c */
+void _initialize_amigaos_nat (void);
+
+bfd_byte *amigaos_relocate_section (bfd *abfd, asection *sectp, bfd_byte *buf);
+
 static ULONG amigaos_debug_callback(struct Hook *, struct Task *, struct KernelDebugMessage *);
 
 static void amiga_term (void);
@@ -197,7 +202,8 @@ static char *amigaos_pid_to_exec_file (int pid);
 static void amigaos_create_inferior (struct target_ops *ops, char *exec_file,
 																		 char *args, char **env, int from_tty);
 
-
+static int amigaos_memory_insert_breakpoint (struct gdbarch *arch, struct bp_target_info *target);
+static int amigaos_memory_remove_breakpoint (struct gdbarch *arch, struct bp_target_info *target);
 
 static int amigaos_has_all_memory (struct target_ops *ops);
 static int amigaos_has_memory (struct target_ops *ops);
@@ -210,6 +216,9 @@ static int is_process_alive(struct Process *process);
 
 static int amiga_is_absolute_path (const char *f);
 
+static struct Process *find_process_by_name(char *name);
+static void drop_msg_packet(struct debugger_message *msg);
+static void amigaos_relocate_elfhandle (void *exec_elfhandle);
 
 char *dwarf2_read_section (struct objfile *, asection *sectp);
 void amigaos_exec_close_hook(int quitting);
@@ -255,7 +264,7 @@ void amigaos_post_term(void)
  *
  * @param exec_elfhandle
  */
-void amigaos_relocate_elfhandle (void *exec_elfhandle)
+static void amigaos_relocate_elfhandle (void *exec_elfhandle)
 {
     Elf32_Handle hElf = (Elf32_Handle)exec_elfhandle;
     Elf32_Shdr *pHeader;
@@ -645,7 +654,7 @@ static struct debugger_message *get_msg_packet (void)
  *
  * @param msg
  */
-void drop_msg_packet(struct debugger_message *msg)
+static void drop_msg_packet(struct debugger_message *msg)
 {
     if (msg)
     {
@@ -999,7 +1008,7 @@ amigaos_close(int quitting)
 }
 
 
-struct Process *find_process_by_name(char *name)
+static struct Process *find_process_by_name(char *name)
 {
     struct Node *process;
 
@@ -1819,8 +1828,8 @@ amigaos_stop (ptid_t ptid)
 }
 
 
-int 
-amigaos_memory_insert_breakpoint(CORE_ADDR addr, char *contents_cache)
+static int
+amigaos_memory_insert_breakpoint (struct gdbarch *arch, struct bp_target_info *target)
 {
   int val;
   const unsigned char *bp;
@@ -1828,6 +1837,7 @@ amigaos_memory_insert_breakpoint(CORE_ADDR addr, char *contents_cache)
   uint32 oldAttr;
   APTR stack;
   CORE_ADDR host_addr;
+  CORE_ADDR addr = target -> placed_address;
 
   /* Relocate the address manually if it elf related */
   if (addr >= code_elf_addr && addr < code_elf_addr + code_size)
@@ -1838,16 +1848,16 @@ amigaos_memory_insert_breakpoint(CORE_ADDR addr, char *contents_cache)
   dprintf("Trying to set breakpoint at %p (host_addr=%p, code_elf_addr=%p, code_size=%p)\n", addr, host_addr, code_elf_addr,(void*)code_size);
   
   /* Determine appropriate breakpoint contents and size for this address.  */
-  bp = BREAKPOINT_FROM_PC (&addr, &bplen);
+  bp = gdbarch_breakpoint_from_pc (arch, &addr, &bplen);
   if (bp == NULL)
     error ("Software breakpoints not implemented for this target.");
 
   addr = (CORE_ADDR)host_addr;
 
   /* Save the memory contents.  */
-  val = target_read_memory (addr, contents_cache, bplen);
+  val = target_read_memory (addr, target -> shadow_contents, bplen);
 
-  dprintf("Saved at addr %p the instruction %p\n",(void*)addr,*(void **)contents_cache);
+  dprintf("Saved at addr %p the instruction %p\n",(void*)addr,*(void **) target -> shadow_contents);
 
   /* Write the breakpoint.  */
   if (val == 0)
@@ -1874,8 +1884,8 @@ amigaos_memory_insert_breakpoint(CORE_ADDR addr, char *contents_cache)
 }
 
 
-int 
-amigaos_memory_remove_breakpoint(CORE_ADDR addr, char *contents_cache)
+static int
+amigaos_memory_remove_breakpoint (struct gdbarch *arch, struct bp_target_info *target)
 {
   const unsigned char *bp;
   int bplen;
@@ -1884,6 +1894,7 @@ amigaos_memory_remove_breakpoint(CORE_ADDR addr, char *contents_cache)
   int val;
 
   CORE_ADDR host_addr;
+  CORE_ADDR addr = target -> placed_address;
 
   /* Relocate the address manually if it elf related */
   if (addr >= code_elf_addr && addr < code_elf_addr + code_size)
@@ -1894,7 +1905,8 @@ amigaos_memory_remove_breakpoint(CORE_ADDR addr, char *contents_cache)
   dprintf("Trying to remove breakpoint at %p (host_addr=%p, code_elf_addr=%p, code_size=%p)\n", addr, host_addr, code_elf_addr,(void*)code_size);
 
   /* Determine appropriate breakpoint contents and size for this address.  */
-  bp = BREAKPOINT_FROM_PC (&addr, &bplen);
+  bp = gdbarch_breakpoint_from_pc (arch, &addr, &bplen);
+  
   if (bp == NULL)
     error ("Software breakpoints not implemented for this target.");
 
@@ -1902,14 +1914,14 @@ amigaos_memory_remove_breakpoint(CORE_ADDR addr, char *contents_cache)
 
   /* Go supervisor */
   stack = IExec->SuperState();
-	
-  dprintf("Clearing breakpoint at %p, i.e., restoring with instruction %p\n", addr,*(void**)contents_cache);
+
+  dprintf("Clearing breakpoint at %p, i.e., restoring with instruction %p\n", addr,*(void**)target -> shadow_contents);
   
   /* Make sure to unprotect the memory area */
   oldAttr = IMMU->GetMemoryAttrs((APTR)addr, 0);
   IMMU->SetMemoryAttrs((APTR)addr, bplen, MEMATTRF_READ_WRITE);
 	
-  val = target_write_memory (addr, contents_cache, bplen);
+  val = target_write_memory (addr, target -> shadow_contents, bplen);
   
   /* Set old attributes again */
   IMMU->SetMemoryAttrs((APTR)addr, bplen, oldAttr);

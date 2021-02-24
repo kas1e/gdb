@@ -1626,10 +1626,10 @@ amigaos_fetch_registers (struct target_ops *ops, struct regcache *regcache, int 
 	else
 		return;
 
-  	dprintf("inferior_ptid=%p\n",inferior_ptid);
-    //dprintf("regno = %d (%s)\n", regno, REGISTER_NAME(regno));
+    dprintf("inferior_ptid=%p\n",inferior_ptid);
+    dprintf("regno = %d (%s)\n", regno, gdbarch_register_name (target_gdbarch, regno));
     dprintf("context = %p, sp = %lx, pc = %lx, lr = %lx\n", context, context->gpr[1], context->ip, context->lr);
-  
+
     if (regno == -1)
     {
 		for (i = 0; i < 31; i++)
@@ -1681,7 +1681,7 @@ amigaos_store_registers (struct target_ops *ops, struct regcache *regcache, int 
     const int pc_regnum = gdbarch_pc_regnum (target_gdbarch);
 
     FUNC;
-    //dprintf("regno = %d (%s)\n", regno, REGISTER_NAME(regno));
+    dprintf("regno = %d (%s)\n", regno,  gdbarch_register_name (target_gdbarch, regno));
 
 
 

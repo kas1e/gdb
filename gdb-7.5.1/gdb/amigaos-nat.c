@@ -1674,9 +1674,6 @@ amigaos_store_registers (struct target_ops *ops, struct regcache *regcache, int 
 
     struct regcache *current_regcache = get_current_regcache ();
 
-    /* TODO: not sure about this one */
-    #define PC_REGNUM 3
-
     FUNC;
     //dprintf("regno = %d (%s)\n", regno, REGISTER_NAME(regno));
 

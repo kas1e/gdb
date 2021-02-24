@@ -162,14 +162,6 @@ extern ptid_t inferior_ptid;
 static int init = FALSE;
 static int inferior_created = FALSE;
 
-/** Called from init.c */
-void _initialize_amigaos_nat (void);
-
-
-
-bfd_byte *amigaos_relocate_section (bfd *abfd, asection *sectp, bfd_byte *buf);
-
-
 static ULONG amigaos_debug_callback(struct Hook *, struct Task *, struct KernelDebugMessage *);
 
 static void amiga_term (void);
@@ -177,19 +169,19 @@ static void amiga_init (void);
 
 static void amigaos_open (char *name, int from_tty);
 static void amigaos_close (int quitting);
-static void amigaos_attach (struct target_ops *ops, char *args, int from_tty);
-static void amigaos_detach (struct target_ops *ops, char *args, int from_tty);
-static void amigaos_kill_inferior (struct target_ops *ops);
+static void amigaos_attach (char *args, int from_tty);
+static void amigaos_detach (char *args, int from_tty);
+static void amigaos_kill_inferior (void);
 static int amigaos_can_run(void);
-static void amigaos_resume (struct target_ops *ops, ptid_t ptid, int step,
+static void amigaos_resume (ptid_t ptid, int step,
                             enum gdb_signal signal);
-static ptid_t amigaos_wait (struct target_ops *ops, ptid_t ptid,
-                            struct target_waitstatus *status, int step);
+static ptid_t amigaos_wait (ptid_t ptid,
+                            struct target_waitstatus *status);
 
-static void amigaos_fetch_registers (struct target_ops *, struct regcache *regcache, int regno);
-static void amigaos_store_registers (struct target_ops *, struct regcache *regcache, int regno);
-static void amigaos_prepare_to_store (struct regcache *regcache);
-static int amigaos_xfer_memory (CORE_ADDR memaddr, gdb_byte *myaddr, int len,
+static void amigaos_fetch_registers (int regno);			       
+static void amigaos_store_registers (int regno);
+static void amigaos_prepare_to_store (void);	     
+static int amigaos_xfer_memory (CORE_ADDR memaddr, char *myaddr, int len,
 								int write,
 								struct mem_attrib *attrib,
 								struct target_ops *target);
@@ -197,35 +189,12 @@ static void amigaos_files_info (struct target_ops *target);
 static void amigaos_terminal_init (void);
 static void amigaos_terminal_inferior (void);
 static void amigaos_terminal_ours (void);
-static void amigaos_mourn_inferior (struct target_ops *ops);
-static void amigaos_stop (ptid_t ptid);
+static void amigaos_mourn_inferior (void);
+static void amigaos_stop (void);
 static void amigaos_terminal_info (char *args, int from_tty);
 static char *amigaos_pid_to_exec_file (int pid);
 
-static void amigaos_create_inferior (struct target_ops *ops, char *exec_file,
-																		 char *args, char **env, int from_tty);
-
-
-static int amigaos_memory_insert_breakpoint (struct gdbarch *arch, struct bp_target_info *target);
-static int amigaos_memory_remove_breakpoint (struct gdbarch *arch, struct bp_target_info *target);
-
-
-static int amigaos_has_all_memory (struct target_ops *ops);
-static int amigaos_has_memory (struct target_ops *ops);
-static int amigaos_has_stack (struct target_ops *ops);
-static int amigaos_has_registers (struct target_ops *ops);
-static int amigaos_has_execution (struct target_ops *ops, ptid_t pid);
-
-
 static int is_process_alive(struct Process *process);
-
-static int amiga_is_absolute_path (const char *f);
-
-static struct Process *find_process_by_name(char *name);
-static void drop_msg_packet(struct debugger_message *msg);
-static void amigaos_relocate_elfhandle (void *exec_elfhandle);
-
-
 
 char *dwarf2_read_section (struct objfile *, asection *sectp);
 void amigaos_exec_close_hook(int quitting);
@@ -234,9 +203,6 @@ void amigaos_exec_file_attach_hook(char *filename, int from_tty);
 
 void amigaos_pre_init(void) __attribute__((constructor));
 void amigaos_post_term(void) __attribute__((destructor));
-
-static CORE_ADDR amigaos_get_symbol_addrs_hook(const char *name);
-
 
 void amigaos_pre_init(void)
 {
@@ -271,7 +237,7 @@ void amigaos_post_term(void)
  *
  * @param exec_elfhandle
  */
-static void amigaos_relocate_elfhandle (void *exec_elfhandle)
+void amigaos_relocate_elfhandle (void *exec_elfhandle)
 {
     Elf32_Handle hElf = (Elf32_Handle)exec_elfhandle;
     Elf32_Shdr *pHeader;
@@ -432,7 +398,7 @@ void amigaos_exec_close_hook(int quitting)
  * @param name
  * @return
  */
-static CORE_ADDR amigaos_get_symbol_addrs_hook(const char *name)
+CORE_ADDR amigaos_get_symbol_addrs_hook(const char *name)
 {
 	struct Elf32_SymbolQuery query;
     Elf32_Handle hElf = (Elf32_Handle)exec_elfhandle;
@@ -609,7 +575,7 @@ static void init_msg_storage (void)
     if (msg_storage)
 		return;
     
-    if (!(msg_storage = IExec->AllocVecTags (MAX_DEBUG_MESSAGES * sizeof(struct debugger_message), AVT_Type, MEMF_SHARED, TAG_DONE)))
+    if (!(msg_storage = IExec->AllocVec(MAX_DEBUG_MESSAGES * sizeof(struct debugger_message), MEMF_PUBLIC)))
 		error ("Can't allocate memory for messages\n");  
 
     IExec->NewList(&msg_list);
@@ -661,7 +627,7 @@ static struct debugger_message *get_msg_packet (void)
  *
  * @param msg
  */
-static void drop_msg_packet(struct debugger_message *msg)
+void drop_msg_packet(struct debugger_message *msg)
 {
     if (msg)
     {
@@ -823,7 +789,7 @@ amiga_init(void)
     
     /* Initialize the hook and data structure */
     debug_data.current_process = 0;
-    debug_data.debugger_port = IExec->AllocSysObjectTags (ASOT_PORT, ASOPORT_Name, "GDB", TAG_DONE);
+    debug_data.debugger_port = IExec->CreatePort("GDB", 0L);
     debug_data.debugger_task = IExec->FindTask(NULL);
   
 //    IExec->DebugPrintF("I am %p\n", debug_data.debugger_task);
@@ -855,9 +821,9 @@ amiga_term(void)
     while ((msg = (struct debugger_message *)IExec->GetMsg(debug_data.debugger_port)))
 		drop_msg_packet(msg);
 
-    IExec->FreeSysObject (ASOT_PORT, debug_data.debugger_port);
-
-    if (IDebug)
+    IExec->DeletePort(debug_data.debugger_port);
+  
+  	if (IDebug)
 	    IExec->DropInterface((struct Interface *)IDebug);
   
     term_msg_storage();
@@ -868,7 +834,7 @@ amiga_term(void)
 /* Check for an absolute path name. A path is absolute if there's no slash
    encountered before the first colon */
    
-static int
+int 
 amiga_is_absolute_path(const char *f)
 {
 //printf("\nDEBUG: amiga_is_absolute_path()\n");
@@ -1002,11 +968,11 @@ amigaos_open(char *name, int from_tty)
 static void 
 amigaos_close(int quitting)
 {
-	int i;
 //printf("DEBUG: amigaos_close()\n");
 
     FUNC;
  
+	int i; 
     printf("quitting = %d\n", quitting);
 
     amiga_term();
@@ -1015,7 +981,7 @@ amigaos_close(int quitting)
 }
 
 
-static struct Process *find_process_by_name(char *name)
+struct Process *find_process_by_name(char *name)
 {
     struct Node *process;
 
@@ -1135,7 +1101,7 @@ amigaos_pid_to_exec_file (int pid)
 				
   
 static void 
-amigaos_attach (struct target_ops *ops, char *args, int from_tty)
+amigaos_attach (char *args, int from_tty)
 {
     struct Process *pProcess;
     uint32 *array;
@@ -1256,7 +1222,7 @@ amigaos_attach (struct target_ops *ops, char *args, int from_tty)
 
 
 static void 
-amigaos_detach (struct target_ops *ops, char *args, int from_tty)
+amigaos_detach (char *args, int from_tty)
 {
 //printf("DEBUG: amigaos_detach()\n");
 
@@ -1287,7 +1253,7 @@ amigaos_can_run (void)
 }
 
 static void
-amigaos_create_inferior (struct target_ops *ops, char *exec_file, char *args, char **env, int from_tty)
+amigaos_create_inferior (char *exec_file, char *args, char **env, int from_tty)
 {
     char *io_desc;
 
@@ -1301,11 +1267,8 @@ amigaos_create_inferior (struct target_ops *ops, char *exec_file, char *args, ch
 		target_files_info();
 		if (query("Kill it? "))
 		{
-			/* TODO: does this ptid need to be set? */
-			ptid_t dummy_ptid;
-
-			amigaos_stop(dummy_ptid);
-			amigaos_kill_inferior(NULL);
+			amigaos_stop();
+			amigaos_kill_inferior();
 		}
 		else
 			error ("Program not killed\n");
@@ -1369,8 +1332,8 @@ amigaos_create_inferior (struct target_ops *ops, char *exec_file, char *args, ch
     FUNCX;
 }
 
-static void
-amigaos_kill_inferior (struct target_ops *ops)
+void
+amigaos_kill_inferior (void)
 {
 //printf("DEBUG: amigaos_kill_inferior()\n");
 
@@ -1398,7 +1361,7 @@ amigaos_kill_inferior (struct target_ops *ops)
 }
 
 static void 
-amigaos_resume (struct target_ops *ops, ptid_t ptid, int step,  enum gdb_signal signal)
+amigaos_resume (ptid_t ptid, int step,  enum gdb_signal signal)
 {
 	struct ExceptionContext *context = context_ptr;
 	struct Task *me = IExec->FindTask(NULL);
@@ -1435,7 +1398,7 @@ amigaos_resume (struct target_ops *ops, ptid_t ptid, int step,  enum gdb_signal 
 
  
 static ptid_t 
-amigaos_wait (struct target_ops *ops, ptid_t ptid, struct target_waitstatus *status, int step)
+amigaos_wait (ptid_t ptid, struct target_waitstatus *status)
 {
     struct ExceptionContext *context;
     struct Process *process = (struct Process *)PIDGET(ptid);
@@ -1510,15 +1473,14 @@ amigaos_wait (struct target_ops *ops, ptid_t ptid, struct target_waitstatus *sta
 			
 			dprintf("Got a signal %d (%s) from process %p @ ip %08lx (ctx=%08lx, msg=%08lx)\n", 
 					trap_to_signal(context, msg->flags), 
-					gdb_signal_to_name (trap_to_signal(context, msg->flags)),
+					GDB_SIGNAL_to_name (trap_to_signal(context, msg->flags)),
 					process, context->ip, context, msg);
 	
 			if (msg->signal != -1)
 			{
 				/* Got a "signal"... */
-				int i;
 				status->value.sig = msg->signal;  //trap_to_signal(context, msg->flags);
-				i = status->value.sig;
+				int i = status->value.sig;
 
 				switch (i)
 				{
@@ -1595,12 +1557,8 @@ amigaos_wait (struct target_ops *ops, ptid_t ptid, struct target_waitstatus *sta
 				status->value.sig = 0;
 				
 				/* Add the library to our internal list */
-				#ifdef HAVE_DLFCN_H
 				if (!amigaos_find_lib(msg->library))
-					{
-						amigaos_add_lib(msg->library);
-					}
-				#endif
+					amigaos_add_lib(msg->library);
 				
 				drop_msg_packet(msg);
 				
@@ -1627,13 +1585,11 @@ amigaos_wait (struct target_ops *ops, ptid_t ptid, struct target_waitstatus *sta
 }
 
 static void 
-amigaos_fetch_registers (struct target_ops *ops, struct regcache *regcache, int regno)
+amigaos_fetch_registers (int regno)
 {
     int i;
     struct ExceptionContext *context;
     struct gdbarch_tdep *tdep = gdbarch_tdep (target_gdbarch);
-    struct regcache *current_regcache = get_current_regcache ();
-    const int pc_regnum = gdbarch_pc_regnum (target_gdbarch);
 
     FUNC;
   
@@ -1643,9 +1599,7 @@ amigaos_fetch_registers (struct target_ops *ops, struct regcache *regcache, int 
 		return;
 
   	dprintf("inferior_ptid=%p\n",inferior_ptid);
-    dprintf("regno = %d (%s)\n", regno, gdbarch_register_name (target_gdbarch, regno));
-
-
+    dprintf("regno = %d (%s)\n", regno, REGISTER_NAME(regno));
     dprintf("context = %p, sp = %lx, pc = %lx, lr = %lx\n", context, context->gpr[1], context->ip, context->lr);
   
     if (regno == -1)
@@ -1656,7 +1610,7 @@ amigaos_fetch_registers (struct target_ops *ops, struct regcache *regcache, int 
 		for (i = 0; i < 31; i++)
 			regcache_raw_supply(current_regcache, 32+i, (void *)&context->fpr[i]);
       
-		regcache_raw_supply (current_regcache, pc_regnum, (void *) &context->ip);
+		regcache_raw_supply (current_regcache, PC_REGNUM, (void *) &context->ip);
 		regcache_raw_supply (current_regcache, tdep->ppc_ps_regnum, (void *) &context->msr);
 		regcache_raw_supply (current_regcache, tdep->ppc_cr_regnum, (void *) &context->cr);
 		regcache_raw_supply (current_regcache, tdep->ppc_lr_regnum, (void *) &context->lr);
@@ -1670,7 +1624,7 @@ amigaos_fetch_registers (struct target_ops *ops, struct regcache *regcache, int 
 			regcache_raw_supply (current_regcache, regno, (void *) &context->gpr[regno]);
 		else if (regno >= 32 && regno <= 63)
 			regcache_raw_supply (current_regcache, regno, (void *) &context->fpr[regno-32]);
-		else if (regno == pc_regnum)
+		else if (regno == PC_REGNUM)
 			regcache_raw_supply (current_regcache, regno, (void *) &context->ip);
 		else if (regno == tdep->ppc_ps_regnum)
 			regcache_raw_supply (current_regcache, regno, (void *) &context->msr);
@@ -1688,21 +1642,16 @@ amigaos_fetch_registers (struct target_ops *ops, struct regcache *regcache, int 
 }
 
 static void 
-amigaos_store_registers (struct target_ops *ops, struct regcache *regcache, int regno)
+amigaos_store_registers (int regno)
 {
     int i;
 
 	struct ExceptionContext *context = context_ptr;
     struct gdbarch_tdep *tdep = gdbarch_tdep (target_gdbarch);
 
-    struct regcache *current_regcache = get_current_regcache ();
-    const int pc_regnum = gdbarch_pc_regnum (target_gdbarch);
-
     FUNC;
-    dprintf("regno = %d (%s)\n", regno,  gdbarch_register_name (target_gdbarch, regno));
-
-
-
+    dprintf("regno = %d (%s)\n", regno, REGISTER_NAME(regno));
+ 
     if (regno == -1)
     {
 		for (i = 0; i < 32; i++)
@@ -1710,7 +1659,7 @@ amigaos_store_registers (struct target_ops *ops, struct regcache *regcache, int 
 		for (i = 0; i < 32; i++)
 			regcache_raw_collect(current_regcache, 32+i, (void *) &context->fpr[i]);
 	
-		regcache_raw_collect (current_regcache, pc_regnum, (void *) &context->ip);
+		regcache_raw_collect (current_regcache, PC_REGNUM, (void *) &context->ip);
 		regcache_raw_collect (current_regcache, tdep->ppc_ps_regnum, (void *) &context->msr);
 		regcache_raw_collect (current_regcache, tdep->ppc_cr_regnum, (void *) &context->cr);
 		regcache_raw_collect (current_regcache, tdep->ppc_lr_regnum, (void *) &context->lr);
@@ -1724,8 +1673,8 @@ amigaos_store_registers (struct target_ops *ops, struct regcache *regcache, int 
 			regcache_raw_collect(current_regcache, regno, (void *) &context->gpr[regno]);
 		else if (regno >= 32 && regno <= 63)
 			regcache_raw_collect(current_regcache, regno, (void *) &context->fpr[regno-32]);
-		else if (regno == pc_regnum)
-			regcache_raw_collect (current_regcache, pc_regnum, (void *) &context->ip);
+		else if (regno == PC_REGNUM)
+			regcache_raw_collect (current_regcache, PC_REGNUM, (void *) &context->ip);
 		else if (regno == tdep->ppc_ps_regnum)
 			regcache_raw_collect (current_regcache, tdep->ppc_ps_regnum, (void *) &context->msr);
 		else if (regno == tdep->ppc_cr_regnum)
@@ -1744,15 +1693,14 @@ amigaos_store_registers (struct target_ops *ops, struct regcache *regcache, int 
 }
 
 static void 
-amigaos_prepare_to_store (struct regcache *regcache)
+amigaos_prepare_to_store (void)
 {
     FUNC; 
     FUNCX;
 }
 
-
 static int 
-amigaos_xfer_memory (CORE_ADDR memaddr, gdb_byte *myaddr, int len,
+amigaos_xfer_memory (CORE_ADDR memaddr, char *myaddr, int len,
 					 int write,
 					 struct mem_attrib *attrib,
 					 struct target_ops *target)
@@ -1814,7 +1762,7 @@ amigaos_terminal_info (char *args, int from_tty)
 
 
 static void 
-amigaos_mourn_inferior (struct target_ops *ops)
+amigaos_mourn_inferior (void)
 {
     FUNC;
  
@@ -1826,7 +1774,7 @@ amigaos_mourn_inferior (struct target_ops *ops)
 
 
 static void 
-amigaos_stop (ptid_t ptid)
+amigaos_stop (void)
 {
     FUNC;
   
@@ -1836,9 +1784,8 @@ amigaos_stop (ptid_t ptid)
     FUNCX;
 }
 
-
-static int
-amigaos_memory_insert_breakpoint (struct gdbarch *arch, struct bp_target_info *target)
+int 
+amigaos_memory_insert_breakpoint(CORE_ADDR addr, char *contents_cache)
 {
   int val;
   const unsigned char *bp;
@@ -1846,7 +1793,6 @@ amigaos_memory_insert_breakpoint (struct gdbarch *arch, struct bp_target_info *t
   uint32 oldAttr;
   APTR stack;
   CORE_ADDR host_addr;
-  CORE_ADDR addr = target -> placed_address;
 
   /* Relocate the address manually if it elf related */
   if (addr >= code_elf_addr && addr < code_elf_addr + code_size)
@@ -1857,16 +1803,16 @@ amigaos_memory_insert_breakpoint (struct gdbarch *arch, struct bp_target_info *t
   dprintf("Trying to set breakpoint at %p (host_addr=%p, code_elf_addr=%p, code_size=%p)\n", addr, host_addr, code_elf_addr,(void*)code_size);
   
   /* Determine appropriate breakpoint contents and size for this address.  */
-  bp = gdbarch_breakpoint_from_pc (arch, &addr, &bplen);
+  bp = BREAKPOINT_FROM_PC (&addr, &bplen);
   if (bp == NULL)
     error ("Software breakpoints not implemented for this target.");
 
   addr = (CORE_ADDR)host_addr;
 
   /* Save the memory contents.  */
-  val = target_read_memory (addr, target -> shadow_contents, bplen);
+  val = target_read_memory (addr, contents_cache, bplen);
 
-  dprintf("Saved at addr %p the instruction %p\n",(void*)addr,*(void **) target -> shadow_contents);
+  dprintf("Saved at addr %p the instruction %p\n",(void*)addr,*(void **)contents_cache);
 
   /* Write the breakpoint.  */
   if (val == 0)
@@ -1893,8 +1839,8 @@ amigaos_memory_insert_breakpoint (struct gdbarch *arch, struct bp_target_info *t
 }
 
 
-static int
-amigaos_memory_remove_breakpoint (struct gdbarch *arch, struct bp_target_info *target)
+int 
+amigaos_memory_remove_breakpoint(CORE_ADDR addr, char *contents_cache)
 {
   const unsigned char *bp;
   int bplen;
@@ -1903,7 +1849,6 @@ amigaos_memory_remove_breakpoint (struct gdbarch *arch, struct bp_target_info *t
   int val;
 
   CORE_ADDR host_addr;
-  CORE_ADDR addr = target -> placed_address;
 
   /* Relocate the address manually if it elf related */
   if (addr >= code_elf_addr && addr < code_elf_addr + code_size)
@@ -1914,8 +1859,7 @@ amigaos_memory_remove_breakpoint (struct gdbarch *arch, struct bp_target_info *t
   dprintf("Trying to remove breakpoint at %p (host_addr=%p, code_elf_addr=%p, code_size=%p)\n", addr, host_addr, code_elf_addr,(void*)code_size);
 
   /* Determine appropriate breakpoint contents and size for this address.  */
-  bp = gdbarch_breakpoint_from_pc (arch, &addr, &bplen);
-
+  bp = BREAKPOINT_FROM_PC (&addr, &bplen);
   if (bp == NULL)
     error ("Software breakpoints not implemented for this target.");
 
@@ -1924,13 +1868,13 @@ amigaos_memory_remove_breakpoint (struct gdbarch *arch, struct bp_target_info *t
   /* Go supervisor */
   stack = IExec->SuperState();
 	
-  dprintf("Clearing breakpoint at %p, i.e., restoring with instruction %p\n", addr,*(void**)target -> shadow_contents);
+  dprintf("Clearing breakpoint at %p, i.e., restoring with instruction %p\n", addr,*(void**)contents_cache);
   
   /* Make sure to unprotect the memory area */
   oldAttr = IMMU->GetMemoryAttrs((APTR)addr, 0);
   IMMU->SetMemoryAttrs((APTR)addr, bplen, MEMATTRF_READ_WRITE);
 	
-  val = target_write_memory (addr, target -> shadow_contents, bplen);
+  val = target_write_memory (addr, contents_cache, bplen);
   
   /* Set old attributes again */
   IMMU->SetMemoryAttrs((APTR)addr, bplen, oldAttr);
@@ -1980,44 +1924,14 @@ init_amigaos_ops (void)
     amigaos_ops.to_pid_to_exec_file = amigaos_pid_to_exec_file;
     
     amigaos_ops.to_stratum = process_stratum;
-    amigaos_ops.to_has_all_memory = amigaos_has_all_memory;
-    amigaos_ops.to_has_memory = amigaos_has_memory;
-    amigaos_ops.to_has_stack = amigaos_has_stack;
-    amigaos_ops.to_has_registers = amigaos_has_registers;
-    amigaos_ops.to_has_execution = amigaos_has_execution;
+    amigaos_ops.to_has_all_memory = 1;
+    amigaos_ops.to_has_memory = 1;
+    amigaos_ops.to_has_stack = 1;
+    amigaos_ops.to_has_registers = 1;
+    amigaos_ops.to_has_execution = 1;
     amigaos_ops.to_magic = OPS_MAGIC;
 
 }
-
-
-static int amigaos_has_all_memory (struct target_ops *ops)
-{
-	return 1;
-}
-
-static int amigaos_has_memory (struct target_ops *ops)
-{
-	return 1;
-}
-
-
-static int amigaos_has_stack (struct target_ops *ops)
-{
-	return 1;
-}
-
-
-static int amigaos_has_registers (struct target_ops *ops)
-{
-	return 1;
-}
-
-
-static int amigaos_has_execution (struct target_ops *ops, ptid_t pid)
-{
-	return 1;
-}
-
 
 
 void
@@ -2027,8 +1941,5 @@ _initialize_amigaos_nat (void)
 
     init_amigaos_ops();
     add_target(&amigaos_ops);
-
-#ifdef HAVE_DLFCN_H
     amigaos_solib_init();
-#endif
 }

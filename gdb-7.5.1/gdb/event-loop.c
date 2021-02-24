@@ -436,7 +436,10 @@ gdb_do_one_event (void)
 	case 1:
 	  /* Are there events already waiting to be collected on the
 	     monitored file descriptors?  */
+	#warning TODO: TO FIX Posix IO signal issues (cause "select ." in the gdb terminal blocking input)
+	#ifndef __amigaos4__
 	  gdb_wait_for_event (0);
+	#endif
 	  break;
 	case 2:
 	  /* Are there any asynchronous event handlers ready?  */

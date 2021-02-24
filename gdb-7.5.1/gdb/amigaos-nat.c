@@ -1494,7 +1494,7 @@ amigaos_wait (struct target_ops *ops, ptid_t ptid, struct target_waitstatus *sta
 			
 			dprintf("Got a signal %d (%s) from process %p @ ip %08lx (ctx=%08lx, msg=%08lx)\n", 
 					trap_to_signal(context, msg->flags), 
-					GDB_SIGNAL_to_name (trap_to_signal(context, msg->flags)),
+					gdb_signal_to_name (trap_to_signal(context, msg->flags)),
 					process, context->ip, context, msg);
 	
 			if (msg->signal != -1)

@@ -1579,8 +1579,12 @@ amigaos_wait (struct target_ops *ops, ptid_t ptid, struct target_waitstatus *sta
 				status->value.sig = 0;
 				
 				/* Add the library to our internal list */
+				#ifdef HAVE_DLFCN_H
 				if (!amigaos_find_lib(msg->library))
-					amigaos_add_lib(msg->library);
+					{
+						amigaos_add_lib(msg->library);
+					}
+				#endif
 				
 				drop_msg_packet(msg);
 				
@@ -1613,6 +1617,7 @@ amigaos_fetch_registers (struct target_ops *ops, struct regcache *regcache, int 
     struct ExceptionContext *context;
     struct gdbarch_tdep *tdep = gdbarch_tdep (target_gdbarch);
     struct regcache *current_regcache = get_current_regcache ();
+    const int pc_regnum = gdbarch_pc_regnum (target_gdbarch);
 
     FUNC;
   
@@ -1633,7 +1638,7 @@ amigaos_fetch_registers (struct target_ops *ops, struct regcache *regcache, int 
 		for (i = 0; i < 31; i++)
 			regcache_raw_supply(current_regcache, 32+i, (void *)&context->fpr[i]);
       
-		regcache_raw_supply (current_regcache, PC_REGNUM, (void *) &context->ip);
+		regcache_raw_supply (current_regcache, pc_regnum, (void *) &context->ip);
 		regcache_raw_supply (current_regcache, tdep->ppc_ps_regnum, (void *) &context->msr);
 		regcache_raw_supply (current_regcache, tdep->ppc_cr_regnum, (void *) &context->cr);
 		regcache_raw_supply (current_regcache, tdep->ppc_lr_regnum, (void *) &context->lr);
@@ -1647,7 +1652,7 @@ amigaos_fetch_registers (struct target_ops *ops, struct regcache *regcache, int 
 			regcache_raw_supply (current_regcache, regno, (void *) &context->gpr[regno]);
 		else if (regno >= 32 && regno <= 63)
 			regcache_raw_supply (current_regcache, regno, (void *) &context->fpr[regno-32]);
-		else if (regno == PC_REGNUM)
+		else if (regno == pc_regnum)
 			regcache_raw_supply (current_regcache, regno, (void *) &context->ip);
 		else if (regno == tdep->ppc_ps_regnum)
 			regcache_raw_supply (current_regcache, regno, (void *) &context->msr);
@@ -1673,9 +1678,7 @@ amigaos_store_registers (struct target_ops *ops, struct regcache *regcache, int 
     struct gdbarch_tdep *tdep = gdbarch_tdep (target_gdbarch);
 
     struct regcache *current_regcache = get_current_regcache ();
-
-    /* TODO: not sure about this one */
-    #define PC_REGNUM 3
+    const int pc_regnum = gdbarch_pc_regnum (target_gdbarch);
 
     FUNC;
     dprintf("regno = %d (%s)\n", regno, REGISTER_NAME(regno));
@@ -1689,7 +1692,7 @@ amigaos_store_registers (struct target_ops *ops, struct regcache *regcache, int 
 		for (i = 0; i < 32; i++)
 			regcache_raw_collect(current_regcache, 32+i, (void *) &context->fpr[i]);
 	
-		regcache_raw_collect (current_regcache, PC_REGNUM, (void *) &context->ip);
+		regcache_raw_collect (current_regcache, pc_regnum, (void *) &context->ip);
 		regcache_raw_collect (current_regcache, tdep->ppc_ps_regnum, (void *) &context->msr);
 		regcache_raw_collect (current_regcache, tdep->ppc_cr_regnum, (void *) &context->cr);
 		regcache_raw_collect (current_regcache, tdep->ppc_lr_regnum, (void *) &context->lr);
@@ -1703,8 +1706,8 @@ amigaos_store_registers (struct target_ops *ops, struct regcache *regcache, int 
 			regcache_raw_collect(current_regcache, regno, (void *) &context->gpr[regno]);
 		else if (regno >= 32 && regno <= 63)
 			regcache_raw_collect(current_regcache, regno, (void *) &context->fpr[regno-32]);
-		else if (regno == PC_REGNUM)
-			regcache_raw_collect (current_regcache, PC_REGNUM, (void *) &context->ip);
+		else if (regno == pc_regnum)
+			regcache_raw_collect (current_regcache, pc_regnum, (void *) &context->ip);
 		else if (regno == tdep->ppc_ps_regnum)
 			regcache_raw_collect (current_regcache, tdep->ppc_ps_regnum, (void *) &context->msr);
 		else if (regno == tdep->ppc_cr_regnum)
@@ -2003,5 +2006,8 @@ _initialize_amigaos_nat (void)
 
     init_amigaos_ops();
     add_target(&amigaos_ops);
+
+#ifdef HAVE_DLFCN_H
     amigaos_solib_init();
+#endif
 }

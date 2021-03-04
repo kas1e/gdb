@@ -121,6 +121,10 @@ exec_close_1 (int quitting)
   int need_symtab_cleanup = 0;
   struct vmap *vp, *nxt;
 
+#if defined(__amigaos4__)
+  amigaos_exec_close_hook(quitting);
+#endif 
+
   using_exec_ops = 0;
 
   for (nxt = vmap; nxt != NULL;)
@@ -230,13 +234,19 @@ exec_file_attach (char *filename, int from_tty)
 	     &scratch_pathname);
 	}
 #endif
-      if (scratch_chan < 0)
-	perror_with_name (filename);
-      exec_bfd = bfd_fopen (scratch_pathname, gnutarget,
-			    write_files ? FOPEN_RUB : FOPEN_RB,
-			    scratch_chan);
 
-      if (!exec_bfd)
+#if defined(__amigaos4__)
+      amigaos_exec_file_attach_hook(filename, from_tty);
+#endif
+
+	if (scratch_chan < 0) {
+		perror_with_name (filename);
+	}
+	exec_bfd = bfd_fopen (scratch_pathname, gnutarget,
+				write_files ? FOPEN_RUB : FOPEN_RB,
+				scratch_chan);
+
+	if (!exec_bfd)
 	{
 	  error (_("\"%s\": could not open as an executable file: %s"),
 		 scratch_pathname, bfd_errmsg (bfd_get_error ()));
